@@ -21,7 +21,7 @@ export default function OnboardingScreen() {
   const next = () => setStep((current) => Math.min(current + 1, 4) as Step);
   const back = () => step === 1 ? router.back() : setStep((current) => (current - 1) as Step);
 
-  if (step === 4) return <ReadyScreen onFinish={() => router.replace('/explore')} />;
+  if (step === 4) return <ReadyScreen onFinish={() => router.replace('/(app)/home')} />;
   return <View style={styles.screen}>
     <LinearGradient colors={['#031A36', '#030E20', '#020914']} end={{ x: .72, y: 1 }} start={{ x: .1, y: 0 }} style={StyleSheet.absoluteFill} />
     <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

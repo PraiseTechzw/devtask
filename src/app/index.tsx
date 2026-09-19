@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { isClerkAPIResponseError, useSSO } from '@clerk/expo';
+import { isClerkAPIResponseError, useAuth, useSSO } from '@clerk/expo';
 import { useSignIn } from '@clerk/expo/legacy';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -85,7 +85,11 @@ export function SignInScreen() {
 }
 
 export default function LaunchScreen() {
-  return <Redirect href="/welcome" />;
+  const { isLoaded, isSignedIn } = useAuth({ treatPendingAsSignedOut: false });
+
+  if (!isLoaded) return <View style={styles.screen} />;
+
+  return <Redirect href={isSignedIn ? '/(app)/home' : '/welcome'} />;
 }
 
 function Field({ icon, label, inputLabel, trailing, ...inputProps }: { icon: 'envelope-o' | 'lock'; label: string; inputLabel: string; trailing?: ReactNode } & TextInputProps) {

@@ -1,45 +1,22 @@
-import { Image } from 'expo-image';
-import { ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { AppShell, SectionTitle } from '@/components/app-shell';
+import { projects } from '@/constants/mock-data';
+import { FontFamily, Palette } from '@/constants/theme';
 
-export default function ExploreScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const theme = useTheme();
-
-  return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={[
-        styles.contentContainer,
-        { paddingTop: safeAreaInsets.top, paddingBottom: safeAreaInsets.bottom + BottomTabInset },
-      ]}>
-      <ThemedView style={styles.container}>
-        <Image source={require('@/assets/images/icon.png')} style={styles.logo} />
-        <ThemedText type="subtitle">DevTask</ThemedText>
-        <ThemedText style={styles.copy} themeColor="textSecondary">
-          Build less. Finish more.
-        </ThemedText>
-      </ThemedView>
-    </ScrollView>
-  );
+export default function HomeScreen() {
+  const router = useRouter();
+  return <AppShell action={<FontAwesome color="#D4EBFF" name="bell-o" size={19} />}>
+    <Text style={styles.greeting}>Good morning, Praise 👋</Text><Text style={styles.day}>Keep pushing, great things take time!</Text>
+    <View style={styles.progress}><View style={styles.progressTop}><Text style={styles.eyebrow}>Today’s Progress</Text><FontAwesome color="#62A0D9" name="times" size={12} /></View><View style={styles.progressBody}><View style={styles.progressRing}><Text style={styles.ringNumber}>62%</Text></View><View style={styles.progressCopy}><Text style={styles.projectName}>Portfolio</Text><Text style={styles.money}>$4,280 / $6,800</Text><Text style={styles.delta}>↗ 12% this week</Text></View><View style={styles.spark}><View style={[styles.sparkLine, { height: 12 }]} /><View style={[styles.sparkLine, { height: 22 }]} /><View style={[styles.sparkLine, { height: 17 }]} /><View style={[styles.sparkLine, { height: 30 }]} /></View></View></View>
+    <View style={styles.stats}><Stat label="Active Projects" value="5" tone="#00CFF5" /><Stat label="Completed" value="12" tone="#00DDBE" /><Stat label="Overdue" value="2" tone="#FF5D67" /></View>
+    <SectionTitle action={<FontAwesome color="#62A0D9" name="times" size={12} />}>Your Projects</SectionTitle>
+    {projects.map((project, index) => <Pressable accessibilityRole="button" key={project.id} onPress={() => router.push(`/project/${project.id}` as never)} style={styles.projectRow}><View style={[styles.smallRing, { borderColor: ['#00D6FF', '#00C6FF', '#FFB220', '#00E0BD'][index] }]}><Text style={styles.smallRingText}>{project.progress}%</Text></View><View style={styles.projectCopy}><View style={styles.projectNameRow}><Text style={styles.rowName}>{project.name}</Text><Text style={[styles.rowPercent, { color: ['#00DDBE', '#00DDBE', '#FF9B4A', '#00DDBE'][index] }]}>{project.progress}%</Text></View><Text style={styles.repo}>{['Design & Development', 'UI/UX Design', 'Frontend Development', 'Design & Branding'][index]}</Text></View><View style={styles.cost}><Text style={styles.costText}>{['$2,400', '$1,250', '$980', '$750'][index]}</Text></View></Pressable>)}
+    <SectionTitle>Today’s Tasks</SectionTitle>{['Finish Portfolio Homepage', 'Review Mobile App UI', 'Update Project Documentation', 'Team Standup Meeting'].map((task, index) => <View key={task} style={styles.task}><View style={[styles.check, index === 0 && styles.checkDone]}>{index === 0 ? <Text style={styles.tick}>✓</Text> : null}</View><Text style={styles.taskText}>{task}</Text></View>)}
+    <Pressable accessibilityLabel="Add task" accessibilityRole="button" style={styles.fab}><Text style={styles.fabText}>+</Text></Pressable>
+  </AppShell>;
 }
-
-const styles = StyleSheet.create({
-  scrollView: { flex: 1 },
-  contentContainer: { flexGrow: 1 },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-  },
-  logo: { width: 128, height: 128 },
-  copy: { textAlign: 'center' },
-});
+function Stat({ label, value, tone }: { label: string; value: string; tone: string }) { return <View style={styles.stat}><Text style={styles.statLabel}>{label}</Text><View style={styles.statBottom}><Text style={[styles.statValue, { color: tone }]}>{value}</Text><Text style={[styles.statArrow, { color: tone }]}>↗</Text></View></View>; }
+const styles = StyleSheet.create({ greeting: { marginTop: 1, color: '#F5F9FF', fontFamily: FontFamily.bold, fontSize: 17 }, day: { marginTop: 3, color: '#84AFE0', fontFamily: FontFamily.regular, fontSize: 10 }, progress: { marginTop: 13, padding: 11, borderRadius: 11, borderWidth: 1, borderColor: '#0874C9', backgroundColor: '#062D5C' }, progressTop: { flexDirection: 'row', justifyContent: 'space-between' }, eyebrow: { color: '#C7E6FF', fontFamily: FontFamily.medium, fontSize: 10 }, progressBody: { marginTop: 8, flexDirection: 'row', alignItems: 'center' }, progressRing: { width: 45, height: 45, borderRadius: 23, borderWidth: 4, borderColor: '#00CFF5', alignItems: 'center', justifyContent: 'center' }, ringNumber: { color: '#E8F7FF', fontFamily: FontFamily.bold, fontSize: 11 }, progressCopy: { marginLeft: 10, flex: 1 }, projectName: { color: '#F2F8FF', fontFamily: FontFamily.semibold, fontSize: 13 }, money: { marginTop: 2, color: '#B8D9FA', fontFamily: FontFamily.medium, fontSize: 11 }, delta: { marginTop: 3, color: '#00E0BD', fontFamily: FontFamily.medium, fontSize: 9 }, spark: { height: 34, width: 40, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }, sparkLine: { width: 7, borderRadius: 3, backgroundColor: '#00BFF2' }, stats: { marginTop: 8, flexDirection: 'row', gap: 7 }, stat: { flex: 1, padding: 9, borderRadius: 9, backgroundColor: '#092B55', borderWidth: 1, borderColor: '#114A7F' }, statLabel: { color: '#9CC6F0', fontFamily: FontFamily.regular, fontSize: 8 }, statBottom: { marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, statValue: { fontFamily: FontFamily.bold, fontSize: 17 }, statArrow: { fontFamily: FontFamily.bold, fontSize: 12 }, projectRow: { minHeight: 51, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: '#10406D', backgroundColor: '#05264E' }, smallRing: { width: 31, height: 31, borderRadius: 16, borderWidth: 3, alignItems: 'center', justifyContent: 'center' }, smallRingText: { color: '#DEF3FF', fontFamily: FontFamily.mono, fontSize: 7 }, projectCopy: { flex: 1 }, projectNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, rowName: { color: '#EAF5FF', fontFamily: FontFamily.medium, fontSize: 11 }, rowPercent: { fontFamily: FontFamily.bold, fontSize: 10 }, repo: { marginTop: 2, color: '#79A9D9', fontFamily: FontFamily.regular, fontSize: 8 }, cost: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, backgroundColor: '#0D416F' }, costText: { color: '#A9D9FF', fontFamily: FontFamily.medium, fontSize: 8 }, task: { minHeight: 22, flexDirection: 'row', alignItems: 'center', gap: 8 }, check: { width: 13, height: 13, borderRadius: 4, borderWidth: 1, borderColor: '#4E89C1', alignItems: 'center', justifyContent: 'center' }, checkDone: { borderColor: '#00DDBE', backgroundColor: '#00BFA0' }, tick: { color: '#FFF', fontFamily: FontFamily.bold, fontSize: 8 }, taskText: { color: '#CFE7FF', fontFamily: FontFamily.regular, fontSize: 10 }, fab: { position: 'absolute', right: 1, bottom: 8, width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#087FFF', shadowColor: '#00CFF5', shadowOpacity: .55, shadowRadius: 10, elevation: 8 }, fabText: { color: '#FFF', fontFamily: FontFamily.regular, fontSize: 27 } });
