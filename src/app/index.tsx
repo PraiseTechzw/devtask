@@ -7,7 +7,9 @@ import { Redirect, useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from 'convex/react';
 
+import { api } from '../../convex/_generated/api';
 import { FontFamily, Palette } from '@/constants/theme';
 
 export function SignInScreen() {
@@ -86,10 +88,12 @@ export function SignInScreen() {
 
 export default function LaunchScreen() {
   const { isLoaded, isSignedIn } = useAuth({ treatPendingAsSignedOut: false });
+  const profile = useQuery(api.users.getCurrent, isSignedIn ? {} : 'skip');
 
   if (!isLoaded) return <View style={styles.screen} />;
-
-  return <Redirect href={isSignedIn ? '/(app)/home' : '/welcome'} />;
+  if (!isSignedIn) return <Redirect href="/welcome" />;
+  if (profile === undefined) return <View style={styles.screen} />;
+  return <Redirect href={profile?.onboardingStatus === 'complete' ? '/(app)/home' : '/onboarding'} />;
 }
 
 function Field({ icon, label, inputLabel, trailing, ...inputProps }: { icon: 'envelope-o' | 'lock'; label: string; inputLabel: string; trailing?: ReactNode } & TextInputProps) {

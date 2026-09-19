@@ -1,0 +1,68 @@
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
+
+const projectState = v.union(v.literal('active'), v.literal('archived'), v.literal('completed'));
+const healthState = v.union(v.literal('active'), v.literal('slowing'), v.literal('stalled'), v.literal('dying'));
+
+export default defineSchema({
+  users: defineTable({
+    clerkId: v.string(),
+    timeZone: v.string(),
+    onboardingStatus: v.union(v.literal('notStarted'), v.literal('inProgress'), v.literal('complete')),
+    reminderTime: v.optional(v.string()),
+    theme: v.union(v.literal('dark'), v.literal('light')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_clerk_id', ['clerkId']),
+  projects: defineTable({
+    ownerId: v.id('users'),
+    name: v.string(),
+    repositoryId: v.optional(v.string()),
+    repositoryName: v.optional(v.string()),
+    repositoryUrl: v.optional(v.string()),
+    deadline: v.optional(v.string()),
+    state: projectState,
+    focus: v.boolean(),
+    progress: v.number(),
+    health: healthState,
+    healthReasons: v.array(v.string()),
+    lastActivityAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    archivedAt: v.optional(v.number()),
+  }).index('by_owner', ['ownerId']).index('by_owner_and_state', ['ownerId', 'state']).index('by_owner_and_repository', ['ownerId', 'repositoryId']),
+  features: defineTable({
+    ownerId: v.id('users'),
+    projectId: v.id('projects'),
+    title: v.string(),
+    bucket: v.union(v.literal('v1'), v.literal('backlog')),
+    weight: v.union(v.literal('small'), v.literal('medium'), v.literal('large')),
+    state: v.union(v.literal('open'), v.literal('completed')),
+    order: v.number(),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_project', ['projectId']).index('by_owner_and_project', ['ownerId', 'projectId']),
+  checklistItems: defineTable({
+    ownerId: v.id('users'),
+    projectId: v.optional(v.id('projects')),
+    featureId: v.optional(v.id('features')),
+    title: v.string(),
+    localDate: v.string(),
+    state: v.union(v.literal('open'), v.literal('completed')),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_owner_and_date', ['ownerId', 'localDate']),
+  githubConnections: defineTable({
+    ownerId: v.id('users'),
+    githubUserId: v.string(),
+    state: v.union(v.literal('connected'), v.literal('reauthorizationRequired'), v.literal('disconnected')),
+    scopes: v.array(v.string()),
+    lastSyncAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_owner', ['ownerId']).index('by_owner_and_github_user', ['ownerId', 'githubUserId']),
+});

@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { DevTaskConvexProvider } from '@/components/convex-provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,10 +24,12 @@ export default function TabLayout() {
 
   return (
       <ClerkProvider publishableKey={clerkPublishableKey!} tokenCache={tokenCache}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
-        <Slot />
-      </ThemeProvider>
+        <DevTaskConvexProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <AnimatedSplashOverlay />
+            <Slot />
+          </ThemeProvider>
+        </DevTaskConvexProvider>
     </ClerkProvider>
   );
 }

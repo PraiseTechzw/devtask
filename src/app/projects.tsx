@@ -1,11 +1,12 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
+import { useQuery } from 'convex/react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { AppShell } from '@/components/app-shell';
-import { projects } from '@/constants/mock-data';
+import { api } from '../../convex/_generated/api';
 import { FontFamily, Palette } from '@/constants/theme';
 
 type ProjectStatus = 'Active' | 'In Progress' | 'On Hold';
@@ -20,16 +21,6 @@ type ProjectItem = {
   status: ProjectStatus;
 };
 
-const projectList: ProjectItem[] = [
-  { ...projects[0], category: 'Design & Development', budget: '$2,400', status: 'Active' },
-  { ...projects[1], category: 'UI/UX Design', budget: '$1,250', status: 'Active' },
-  { ...projects[2], category: 'Frontend Development', budget: '$980', status: 'In Progress' },
-  { ...projects[3], category: 'Design & Branding', budget: '$750', status: 'Active' },
-  { id: 'ecommerce', name: 'E-commerce', progress: 25, health: 'Stalled', detail: '2 days ago', category: 'E-commerce', budget: '$1,500', status: 'On Hold' },
-  { id: 'social', name: 'Social Media', progress: 68, health: 'Active', detail: 'Today', category: 'Social Media', budget: '$420', status: 'Active' },
-  { id: 'blog', name: 'Blog Platform', progress: 55, health: 'Slowing', detail: 'Today', category: 'Blog Platform', budget: '$860', status: 'In Progress' },
-];
-
 const filters = ['All', 'Active', 'Completed', 'On Hold'] as const;
 type Filter = (typeof filters)[number];
 
@@ -40,12 +31,16 @@ function statusColor(status: ProjectStatus) {
 
 export default function ProjectsScreen() {
   const router = useRouter();
+  const projects = useQuery(api.projects.list, {});
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
+  const projectList: ProjectItem[] = (projects ?? []).map((project) => ({
+    id: project._id, name: project.name, progress: project.progress, health: project.health, detail: project.lastActivityAt ? 'Updated recently' : 'No activity yet', category: project.repositoryName || 'Personal project', budget: project.focus ? 'Focus' : 'Project', status: project.state === 'completed' ? 'In Progress' : project.health === 'stalled' || project.health === 'dying' ? 'On Hold' : project.health === 'slowing' ? 'In Progress' : 'Active',
+  }));
   const visibleProjects = useMemo(() => projectList.filter((project) => {
     const matchesFilter = filter === 'All' || (filter === 'Active' && project.status === 'Active') || (filter === 'On Hold' && project.status === 'On Hold');
     return matchesFilter && project.name.toLowerCase().includes(query.trim().toLowerCase());
-  }), [filter, query]);
+  }), [filter, projectList, query]);
 
   return <AppShell title="Projects" action={<Pressable accessibilityLabel="Add project" onPress={() => router.push('/add-project')}><Text style={styles.add}>+</Text></Pressable>}>
     <View style={styles.search}><FontAwesome color="#8DB9E7" name="search" size={12} /><TextInput accessibilityLabel="Search projects" onChangeText={setQuery} placeholder="Search projects..." placeholderTextColor="#8DB9E7" style={styles.searchInput} value={query} /></View>
