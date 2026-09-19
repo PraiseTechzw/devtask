@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontFamily, Palette } from '@/constants/theme';
 
 export function SignInScreen() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -29,13 +30,13 @@ export function SignInScreen() {
           <Field autoComplete="password" icon="lock" inputLabel="Password" label="Password" placeholder="Enter your password" secureTextEntry={!showPassword} textContentType="password" trailing={<Pressable accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} accessibilityRole="button" hitSlop={12} onPress={() => setShowPassword((visible) => !visible)} style={styles.visibilityButton}><FontAwesome color="#8FCAFF" name={showPassword ? 'eye-slash' : 'eye'} size={19} /></Pressable>} />
           <View style={styles.options}>
             <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: rememberMe }} onPress={() => setRememberMe((checked) => !checked)} style={styles.rememberControl}><View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>{rememberMe ? <Text style={styles.checkmark}>✓</Text> : null}</View><Text style={styles.rememberText}>Remember me</Text></Pressable>
-            <Pressable accessibilityRole="button" hitSlop={8}><Text style={styles.link}>Forgot password?</Text></Pressable>
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push('/forgot-password')}><Text style={styles.link}>Forgot password?</Text></Pressable>
           </View>
-          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.signInButton, pressed && styles.pressed]}><LinearGradient colors={['#0878FF', '#0068FF', '#00D5F5']} end={{ x: 1, y: .5 }} start={{ x: 0, y: .5 }} style={styles.signInGradient}><Text style={styles.signInText}>Sign In</Text><Text style={styles.arrow}>→</Text></LinearGradient></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.replace('/onboarding')} style={({ pressed }) => [styles.signInButton, pressed && styles.pressed]}><LinearGradient colors={['#0878FF', '#0068FF', '#00D5F5']} end={{ x: 1, y: .5 }} start={{ x: 0, y: .5 }} style={styles.signInGradient}><Text style={styles.signInText}>Sign In</Text><Text style={styles.arrow}>→</Text></LinearGradient></Pressable>
           <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.or}>or</Text><View style={styles.dividerLine} /></View>
           <SocialButton icon="google" label="Continue with Google" />
           <SocialButton icon="github" label="Continue with GitHub" />
-          <Text style={styles.footer}>Don’t have an account? <Text style={styles.link}>Sign Up</Text></Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/sign-up')}><Text style={styles.footer}>Don’t have an account? <Text style={styles.link}>Sign Up</Text></Text></Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
