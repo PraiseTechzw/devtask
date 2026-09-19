@@ -26,7 +26,7 @@ export default defineSchema({
     focus: v.boolean(),
     progress: v.number(),
     health: healthState,
-    healthScore: v.number(),
+    healthScore: v.optional(v.number()),
     healthReasons: v.array(v.string()),
     lastActivityAt: v.optional(v.number()),
     createdAt: v.number(),

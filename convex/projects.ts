@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
 import { requireCurrentUser } from './users';
+import { recomputeProjectHealth } from './health';
 
 const projectState = v.union(v.literal('active'), v.literal('archived'), v.literal('completed'));
 
@@ -13,7 +14,8 @@ export const list = query({
     const projects = args.state
       ? await ctx.db.query('projects').withIndex('by_owner_and_state', (q) => q.eq('ownerId', user._id).eq('state', args.state!)).collect()
       : await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
-    return projects.sort((a, b) => Number(b.focus) - Number(a.focus) || b.updatedAt - a.updatedAt);
+    const urgency = { dying: 0, stalled: 1, slowing: 2, active: 3 } as const;
+    return projects.sort((a, b) => Number(b.focus) - Number(a.focus) || urgency[a.health] - urgency[b.health] || a.updatedAt - b.updatedAt);
   },
 });
 
@@ -23,14 +25,26 @@ export const home = query({
     const { user } = await requireCurrentUser(ctx);
     if (!user) return null;
     const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
-    const active = projects.filter((project) => project.state === 'active').sort((a, b) => Number(b.focus) - Number(a.focus) || b.updatedAt - a.updatedAt);
-    const focusProject = active.find((project) => project.focus) ?? active[0] ?? null;
+    const active = projects.filter((project) => project.state === 'active');
+    const urgency = { dying: 0, stalled: 1, slowing: 2, active: 3 } as const;
+    const recommendation = [...active].sort((a, b) => {
+      const healthDifference = urgency[a.health] - urgency[b.health];
+      if (healthDifference) return healthDifference;
+      const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+      const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+      if (aDeadline !== bDeadline) return aDeadline - bDeadline;
+      if (a.progress !== b.progress) return a.progress - b.progress;
+      return b.createdAt - a.createdAt;
+    });
+    const focusProject = active.find((project) => project.focus) ?? recommendation[0] ?? null;
     const focusFeatures = focusProject ? await ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', focusProject._id)).collect() : [];
-    const nextFeature = focusFeatures.filter((feature) => feature.bucket === 'v1' && feature.state === 'open').sort((a, b) => a.order - b.order)[0] ?? null;
+    const weightRank = { small: 0, medium: 1, large: 2 } as const;
+    const nextFeature = focusFeatures.filter((feature) => feature.bucket === 'v1' && feature.state === 'open').sort((a, b) => weightRank[a.weight] - weightRank[b.weight] || a.order - b.order)[0] ?? null;
     return {
       projects: active,
       focusProject,
       nextFeature,
+      nextFeatureEstimateMinutes: nextFeature ? ({ small: 15, medium: 30, large: 60 } as const)[nextFeature.weight] : null,
       summary: {
         active: active.length,
         completed: projects.filter((project) => project.state === 'completed').length,
@@ -84,7 +98,7 @@ export const create = mutation({
     if (name.length < 1 || name.length > 80) throw new Error('Project names must be 1–80 characters');
     const now = Date.now();
     const hasFocus = (await ctx.db.query('projects').withIndex('by_owner_and_state', (q) => q.eq('ownerId', user._id).eq('state', 'active')).collect()).some((project) => project.focus);
-    return await ctx.db.insert('projects', { ownerId: user._id, name, deadline: args.deadline, repositoryId: args.repositoryId, repositoryName: args.repositoryName, repositoryUrl: args.repositoryUrl, state: 'active', focus: !hasFocus, progress: 0, health: 'active', healthReasons: ['Define your features to unlock progress'], createdAt: now, updatedAt: now });
+    return await ctx.db.insert('projects', { ownerId: user._id, name, deadline: args.deadline, repositoryId: args.repositoryId, repositoryName: args.repositoryName, repositoryUrl: args.repositoryUrl, state: 'active', focus: !hasFocus, progress: 0, health: 'active', healthScore: 100, healthReasons: ['Define your features to unlock progress'], createdAt: now, updatedAt: now });
   },
 });
 
@@ -108,5 +122,6 @@ export const setState = mutation({
     if (!user || !project || project.ownerId !== user._id) throw new Error('Project not found');
     const now = Date.now();
     await ctx.db.patch(project._id, { state: args.state, focus: args.state === 'active' ? project.focus : false, completedAt: args.state === 'completed' ? now : undefined, archivedAt: args.state === 'archived' ? now : undefined, updatedAt: now });
+    if (args.state === 'active') await recomputeProjectHealth(ctx, project._id);
   },
 });
