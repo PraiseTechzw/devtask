@@ -10,6 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { FontFamily } from '@/constants/theme';
+
 const SPLASH_DURATION = 1400;
 
 /** Matches the branded loading handoff after the native launch screen. */
@@ -89,7 +91,7 @@ const styles = StyleSheet.create({
     color: '#F7FAFF',
     fontSize: 38,
     lineHeight: 44,
-    fontWeight: '800',
+    fontFamily: FontFamily.extraBold,
     letterSpacing: -1.2,
   },
   tagline: {
@@ -97,7 +99,7 @@ const styles = StyleSheet.create({
     color: '#1FCEFF',
     fontSize: 15,
     lineHeight: 22,
-    fontWeight: '600',
+    fontFamily: FontFamily.semibold,
     letterSpacing: 0.4,
   },
   loading: {
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     color: '#7CA9D9',
     fontSize: 11,
     lineHeight: 16,
-    fontWeight: '500',
+    fontFamily: FontFamily.medium,
   },
   track: {
     width: '100%',
