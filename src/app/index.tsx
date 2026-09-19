@@ -1,6 +1,9 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { AppButton, OnboardingPagination } from '@/components/ui/devtask-ui';
+import { FontFamily, Palette } from '@/constants/theme';
 
 export default function WelcomeScreen() {
   return (
@@ -27,16 +30,8 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.footer}>
-          <View accessibilityLabel="Onboarding step 1 of 4" style={styles.pagination}>
-            <View style={[styles.dot, styles.dotActive]} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
-          </View>
-          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-            <Text style={styles.buttonText}>Get Started</Text>
-            <Text style={styles.buttonArrow}>→</Text>
-          </Pressable>
+          <OnboardingPagination step={1} />
+          <AppButton icon={<Text style={styles.buttonArrow}>→</Text>} label="Get Started" />
         </View>
       </SafeAreaView>
     </View>
@@ -67,18 +62,18 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   title: {
-    color: '#F7FAFF',
+    color: Palette.white,
     fontSize: 37,
     lineHeight: 42,
-    fontWeight: '800',
+    fontFamily: FontFamily.extraBold,
     letterSpacing: -1.3,
   },
   description: {
     marginTop: 18,
-    color: '#B7CAE7',
+    color: Palette.muted,
     fontSize: 16,
     lineHeight: 23,
-    fontWeight: '400',
+    fontFamily: FontFamily.regular,
   },
   promise: {
     alignSelf: 'flex-start',
@@ -99,54 +94,16 @@ const styles = StyleSheet.create({
   promiseText: {
     color: '#DFEBFF',
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: FontFamily.medium,
   },
   footer: {
     paddingHorizontal: 28,
     paddingBottom: 18,
   },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 9,
-    marginBottom: 23,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3A5A8A',
-  },
-  dotActive: {
-    backgroundColor: '#168BFF',
-  },
-  button: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#167DFA',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    shadowColor: '#168BFF',
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 8,
-  },
-  buttonPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.99 }],
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
   buttonArrow: {
     color: '#FFFFFF',
     fontSize: 22,
     lineHeight: 24,
-    fontWeight: '400',
+    fontFamily: FontFamily.regular,
   },
 });
