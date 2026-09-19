@@ -40,6 +40,30 @@ export const home = query({
   },
 });
 
+export const analytics = query({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    if (!user) return null;
+    const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const allFeatures = await Promise.all(projects.map((project) => ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', project._id)).collect()));
+    const features = allFeatures.flat();
+    const completedFeatures = features.filter((feature) => feature.state === 'completed');
+    const activeProjects = projects.filter((project) => project.state === 'active');
+    const connection = await ctx.db.query('githubConnections').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).unique();
+    return {
+      activeProjects,
+      summary: {
+        projectsFinished: projects.filter((project) => project.state === 'completed').length,
+        featuresDone: completedFeatures.length,
+        featuresOpen: features.filter((feature) => feature.bucket === 'v1' && feature.state === 'open').length,
+        averageProgress: activeProjects.length ? Math.round(activeProjects.reduce((sum, project) => sum + project.progress, 0) / activeProjects.length) : 0,
+        connectedToGitHub: connection?.state === 'connected',
+      },
+    };
+  },
+});
+
 export const get = query({
   args: { projectId: v.id('projects') },
   handler: async (ctx, args) => {
