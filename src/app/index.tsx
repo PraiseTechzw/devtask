@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { isClerkAPIResponseError } from '@clerk/expo';
+import { isClerkAPIResponseError, useSSO } from '@clerk/expo';
 import { useSignIn } from '@clerk/expo/legacy';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +13,7 @@ import { FontFamily, Palette } from '@/constants/theme';
 export function SignInScreen() {
   const router = useRouter();
   const { isLoaded, setActive, signIn } = useSignIn();
+  const { startSSOFlow } = useSSO();
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,6 +39,13 @@ export function SignInScreen() {
       setSubmitting(false);
     }
   };
+  const handleSocialSignIn = async (strategy: 'oauth_google' | 'oauth_github') => {
+    setError(null);
+    try {
+      const { createdSessionId, setActive: activate } = await startSSOFlow({ strategy });
+      if (createdSessionId && activate) { await activate({ session: createdSessionId }); router.replace('/onboarding'); }
+    } catch (caughtError) { setError(isClerkAPIResponseError(caughtError) ? caughtError.errors[0]?.longMessage ?? 'Unable to continue with this provider.' : 'Unable to continue with this provider right now.'); }
+  };
 
   return <View style={styles.screen}>
     <LinearGradient colors={['#031A36', '#030E20', '#020914']} end={{ x: .72, y: 1 }} start={{ x: .1, y: 0 }} style={StyleSheet.absoluteFill} />
@@ -61,8 +69,8 @@ export function SignInScreen() {
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitting }} disabled={submitting} onPress={handleSignIn} style={({ pressed }) => [styles.signInButton, (pressed || submitting) && styles.pressed]}><LinearGradient colors={['#0878FF', '#0068FF', '#00D5F5']} end={{ x: 1, y: .5 }} start={{ x: 0, y: .5 }} style={styles.signInGradient}>{submitting ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.signInText}>Sign In</Text><Text style={styles.arrow}>→</Text></>}</LinearGradient></Pressable>
           <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.or}>or</Text><View style={styles.dividerLine} /></View>
-          <SocialButton icon="google" label="Continue with Google" />
-          <SocialButton icon="github" label="Continue with GitHub" />
+          <SocialButton icon="google" label="Continue with Google" onPress={() => handleSocialSignIn('oauth_google')} />
+          <SocialButton icon="github" label="Continue with GitHub" onPress={() => handleSocialSignIn('oauth_github')} />
           <Pressable accessibilityRole="button" onPress={() => router.push('/sign-up')}><Text style={styles.footer}>Don’t have an account? <Text style={styles.link}>Sign Up</Text></Text></Pressable>
         </View>
       </ScrollView>
@@ -78,8 +86,8 @@ function Field({ icon, label, inputLabel, trailing, ...inputProps }: { icon: 'en
   return <View style={styles.field}><FontAwesome color="#B7D7FF" name={icon} size={icon === 'lock' ? 24 : 20} style={styles.fieldIcon} /><View style={styles.fieldCopy}><Text style={styles.fieldLabel}>{label}</Text><TextInput accessibilityLabel={inputLabel} autoCapitalize="none" placeholderTextColor="#8FB5E6" selectionColor={Palette.cyan} style={styles.input} {...inputProps} /></View>{trailing}</View>;
 }
 
-function SocialButton({ icon, label }: { icon: 'github' | 'google'; label: string }) {
-  return <Pressable accessibilityRole="button" style={({ pressed }) => [styles.socialButton, pressed && styles.pressed]}><FontAwesome color={icon === 'google' ? '#EA4335' : '#F8FAFC'} name={icon} size={25} /><Text style={styles.socialText}>{label}</Text><Text style={styles.socialArrow}>›</Text></Pressable>;
+function SocialButton({ icon, label, onPress }: { icon: 'github' | 'google'; label: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.socialButton, pressed && styles.pressed]}><FontAwesome color={icon === 'google' ? '#EA4335' : '#F8FAFC'} name={icon} size={25} /><Text style={styles.socialText}>{label}</Text><Text style={styles.socialArrow}>›</Text></Pressable>;
 }
 
 const styles = StyleSheet.create({

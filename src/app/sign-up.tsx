@@ -1,4 +1,6 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { isClerkAPIResponseError } from "@clerk/expo";
+import { useSignUp } from "@clerk/expo/legacy";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -17,7 +19,27 @@ import { FontFamily, Palette } from "@/constants/theme";
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const { isLoaded, signUp } = useSignUp();
+  const [name, setName] = useState("");
+  const [emailAddress, setEmailAddress] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const createAccount = async () => {
+    if (!isLoaded) return;
+    if (password !== confirmPassword) { setError("Passwords do not match."); return; }
+    setError(null); setSubmitting(true);
+    try {
+      const [firstName, ...lastName] = name.trim().split(/\s+/);
+      await signUp.create({ emailAddress: emailAddress.trim(), firstName, lastName: lastName.join(" ") || undefined, password });
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      router.push({ pathname: "/verify-email", params: { email: emailAddress.trim() } });
+    } catch (caughtError) {
+      setError(isClerkAPIResponseError(caughtError) ? caughtError.errors[0]?.longMessage ?? "Unable to create your account." : "Unable to create your account right now.");
+    } finally { setSubmitting(false); }
+  };
   return (
     <View style={styles.screen}>
       <LinearGradient
@@ -59,8 +81,10 @@ export default function SignUpScreen() {
           <Input
             icon="user-o"
             label="Full Name"
+            onChangeText={setName}
             placeholder="John Doe"
             textContentType="name"
+            value={name}
           />
           <Input
             autoCapitalize="none"
@@ -68,13 +92,16 @@ export default function SignUpScreen() {
             icon="envelope-o"
             keyboardType="email-address"
             label="Email Address"
+            onChangeText={setEmailAddress}
             placeholder="you@example.com"
             textContentType="emailAddress"
+            value={emailAddress}
           />
           <Input
             autoComplete="new-password"
             icon="lock"
             label="Password"
+            onChangeText={setPassword}
             placeholder="Create a strong password"
             secureTextEntry={!showPassword}
             textContentType="newPassword"
@@ -94,19 +121,23 @@ export default function SignUpScreen() {
                 />
               </Pressable>
             }
+            value={password}
           />
           <Input
             autoComplete="new-password"
             icon="lock"
             label="Confirm Password"
+            onChangeText={setConfirmPassword}
             placeholder="Re-enter your password"
             secureTextEntry={!showPassword}
             textContentType="newPassword"
             trailing={<FontAwesome color="#8FCAFF" name="eye" size={19} />}
+            value={confirmPassword}
           />
+          {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <PrimaryButton
-            label="Create Account"
-            onPress={() => router.replace("/onboarding")}
+            label={submitting ? "Creating account…" : "Create Account"}
+            onPress={createAccount}
           />
           <View style={styles.divider}>
             <View style={styles.line} />
@@ -320,6 +351,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: 15,
   },
+  error: { marginTop: 14, color: '#FF9B9B', fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
   primary: {
     marginTop: 18,
     borderRadius: 27,
