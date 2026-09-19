@@ -9,6 +9,8 @@
  */
 
 import type * as features from "../features.js";
+import type * as github from "../github.js";
+import type * as http from "../http.js";
 import type * as projects from "../projects.js";
 import type * as users from "../users.js";
 
@@ -20,6 +22,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   features: typeof features;
+  github: typeof github;
+  http: typeof http;
   projects: typeof projects;
   users: typeof users;
 }>;

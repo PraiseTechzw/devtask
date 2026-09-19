@@ -58,6 +58,7 @@ export default defineSchema({
   githubConnections: defineTable({
     ownerId: v.id('users'),
     githubUserId: v.string(),
+    encryptedToken: v.string(),
     state: v.union(v.literal('connected'), v.literal('reauthorizationRequired'), v.literal('disconnected')),
     scopes: v.array(v.string()),
     lastSyncAt: v.optional(v.number()),
@@ -65,4 +66,18 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_owner', ['ownerId']).index('by_owner_and_github_user', ['ownerId', 'githubUserId']),
+  githubOAuthStates: defineTable({
+    ownerId: v.id('users'),
+    value: v.string(),
+    expiresAt: v.number(),
+  }).index('by_value', ['value']),
+  repositories: defineTable({
+    ownerId: v.id('users'),
+    githubRepositoryId: v.string(),
+    fullName: v.string(),
+    url: v.string(),
+    defaultBranch: v.string(),
+    visibility: v.union(v.literal('public'), v.literal('private')),
+    updatedAt: v.number(),
+  }).index('by_owner', ['ownerId']).index('by_owner_and_github_id', ['ownerId', 'githubRepositoryId']),
 });

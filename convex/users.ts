@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
+import { internalQuery, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
 
 export async function requireCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -8,6 +8,8 @@ export async function requireCurrentUser(ctx: QueryCtx | MutationCtx) {
   const user = await ctx.db.query('users').withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject)).unique();
   return { identity, user };
 }
+
+export const getByClerkId = internalQuery({ args: { clerkId: v.string() }, handler: async (ctx, args) => await ctx.db.query('users').withIndex('by_clerk_id', (q) => q.eq('clerkId', args.clerkId)).unique() });
 
 export const getCurrent = query({
   args: {},
