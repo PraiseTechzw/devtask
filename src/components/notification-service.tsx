@@ -1,20 +1,42 @@
 import { useAuth } from '@clerk/expo';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { useMutation, useQuery } from 'convex/react';
+import type * as NotificationsModule from 'expo-notifications';
 
 import { api } from '../../convex/_generated/api';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsApi = typeof NotificationsModule;
+
+let notificationsApi: NotificationsApi | null = null;
+let notificationHandlerConfigured = false;
+
+/**
+ * Expo Go no longer loads Android remote-notification functionality (SDK 53+).
+ * Keep expo-notifications out of module initialization so Expo Router can load
+ * the root layout in Expo Go, and only load it in a native development build.
+ */
+function getNotifications(): NotificationsApi | null {
+  if (Constants.appOwnership === 'expo' || Platform.OS === 'web') return null;
+  if (!notificationsApi) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    notificationsApi = require('expo-notifications') as NotificationsApi;
+  }
+  if (!notificationHandlerConfigured) {
+    notificationsApi.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+    notificationHandlerConfigured = true;
+  }
+  return notificationsApi;
+}
 
 function parseTime(value?: string) {
   const match = value?.match(/(\d{1,2})\s*:\s*(\d{2})\s*(AM|PM)/i);
@@ -41,37 +63,39 @@ export function NotificationService() {
 
   useEffect(() => {
     if (!profile || profile.onboardingStatus !== 'complete') return;
+    const notifications = getNotifications();
+    if (!notifications) return;
 
     const schedule = async () => {
       try {
         if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync('daily-nudge', {
+          await notifications.setNotificationChannelAsync('daily-nudge', {
             name: 'Daily nudge',
-            importance: Notifications.AndroidImportance.DEFAULT,
+            importance: notifications.AndroidImportance.DEFAULT,
           });
         }
 
-        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+        const scheduled = await notifications.getAllScheduledNotificationsAsync();
         await Promise.all(
           scheduled
             .filter((item) => item.content.data?.type === 'dailyNudge')
-            .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)),
+            .map((item) => notifications.cancelScheduledNotificationAsync(item.identifier)),
         );
 
         if (!profile.notificationsEnabled || profile.reminderTime === 'off') return;
 
-        const permissions = await Notifications.getPermissionsAsync();
-        const requested = permissions.granted ? permissions : await Notifications.requestPermissionsAsync();
+        const permissions = await notifications.getPermissionsAsync();
+        const requested = permissions.granted ? permissions : await notifications.requestPermissionsAsync();
         if (!requested.granted) {
           reportNotificationError('Permission was not granted', new Error('Enable notifications in system settings to receive daily nudges.'));
           return;
         }
 
         try {
-          const token = (await Notifications.getExpoPushTokenAsync()).data;
+          const token = (await notifications.getExpoPushTokenAsync()).data;
           await registerDevice({
             expoPushToken: token,
-            platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
+            platform: Platform.OS === 'ios' ? 'ios' : 'android',
             permissionState: 'granted',
           });
         } catch (error) {
@@ -80,14 +104,14 @@ export function NotificationService() {
         }
 
         const { hour, minute } = parseTime(profile.reminderTime);
-        await Notifications.scheduleNotificationAsync({
+        await notifications.scheduleNotificationAsync({
           content: {
             title: 'What is your next small step?',
             body: 'Open DevTask and move your focus project forward.',
             data: { type: 'dailyNudge', url: '/(app)/home' },
           },
           trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            type: notifications.SchedulableTriggerInputTypes.DAILY,
             hour,
             minute,
             channelId: 'daily-nudge',
@@ -102,13 +126,16 @@ export function NotificationService() {
   }, [profile?.notificationsEnabled, profile?.onboardingStatus, profile?.reminderTime, registerDevice]);
 
   useEffect(() => {
-    const redirect = (notification: Notifications.Notification) => {
+    const notifications = getNotifications();
+    if (!notifications) return;
+
+    const redirect = (notification: NotificationsModule.Notification) => {
       const url = notification.request.content.data?.url;
       if (typeof url === 'string') router.push(url as never);
     };
-    const last = Notifications.getLastNotificationResponse();
+    const last = notifications.getLastNotificationResponse();
     if (last?.notification) redirect(last.notification);
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => redirect(response.notification));
+    const subscription = notifications.addNotificationResponseReceivedListener((response) => redirect(response.notification));
     return () => subscription.remove();
   }, []);
 
