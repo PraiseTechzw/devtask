@@ -1,13 +1,14 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Redirect } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FontFamily, Palette } from '@/constants/theme';
 
-export default function SignInScreen() {
+export function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -41,6 +42,10 @@ export default function SignInScreen() {
   </View>;
 }
 
+export default function LaunchScreen() {
+  return <Redirect href="/welcome" />;
+}
+
 function Field({ icon, label, inputLabel, trailing, ...inputProps }: { icon: 'envelope-o' | 'lock'; label: string; inputLabel: string; trailing?: ReactNode } & TextInputProps) {
   return <View style={styles.field}><FontAwesome color="#B7D7FF" name={icon} size={icon === 'lock' ? 24 : 20} style={styles.fieldIcon} /><View style={styles.fieldCopy}><Text style={styles.fieldLabel}>{label}</Text><TextInput accessibilityLabel={inputLabel} autoCapitalize="none" placeholderTextColor="#8FB5E6" selectionColor={Palette.cyan} style={styles.input} {...inputProps} /></View>{trailing}</View>;
 }
@@ -51,10 +56,10 @@ function SocialButton({ icon, label }: { icon: 'github' | 'google'; label: strin
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#020914' }, safeArea: { flex: 1 }, content: { flexGrow: 1, paddingBottom: 24 },
-  brandArea: { height: 244, alignItems: 'center', overflow: 'hidden', paddingTop: 17 }, logoMark: { width: 64, height: 64, borderRadius: 18, borderWidth: 2, borderColor: '#04CFFF', backgroundColor: '#06295A', shadowColor: '#00CFFF', shadowOpacity: .72, shadowRadius: 13, shadowOffset: { width: 0, height: 0 }, elevation: 10, alignItems: 'center', justifyContent: 'center' }, logoCheck: { color: '#10D8FF', fontSize: 48, lineHeight: 51, fontFamily: FontFamily.extraBold, transform: [{ rotate: '-8deg' }] }, logoPrompt: { position: 'absolute', right: 9, bottom: 5, color: '#B9E8FF', fontSize: 13, fontFamily: FontFamily.mono }, brand: { marginTop: 8, color: '#F5F8FF', fontSize: 34, lineHeight: 38, letterSpacing: -1.2, fontFamily: FontFamily.extraBold }, brandAccent: { color: Palette.cyan }, tagline: { color: '#62B4FF', fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 20 }, heroImage: { position: 'absolute', right: -32, bottom: -66, width: 220, height: 220, opacity: .86 },
+  brandArea: { height: 208, alignItems: 'center', overflow: 'hidden', paddingTop: 17 }, logoMark: { width: 64, height: 64, borderRadius: 18, borderWidth: 2, borderColor: '#04CFFF', backgroundColor: '#06295A', shadowColor: '#00CFFF', shadowOpacity: .72, shadowRadius: 13, shadowOffset: { width: 0, height: 0 }, elevation: 10, alignItems: 'center', justifyContent: 'center' }, logoCheck: { color: '#10D8FF', fontSize: 48, lineHeight: 51, fontFamily: FontFamily.extraBold, transform: [{ rotate: '-8deg' }] }, logoPrompt: { position: 'absolute', right: 9, bottom: 5, color: '#B9E8FF', fontSize: 13, fontFamily: FontFamily.mono }, brand: { marginTop: 8, color: '#F5F8FF', fontSize: 34, lineHeight: 38, letterSpacing: -1.2, fontFamily: FontFamily.extraBold }, brandAccent: { color: Palette.cyan }, tagline: { color: '#62B4FF', fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 20 }, heroImage: { position: 'absolute', right: -24, bottom: -42, width: 178, height: 178, opacity: .86 },
   formArea: { paddingHorizontal: 28 }, title: { color: '#F7FAFF', fontFamily: FontFamily.extraBold, fontSize: 35, lineHeight: 42, letterSpacing: -1.3 }, titleAccent: { color: Palette.cyan }, subtitle: { marginTop: 7, color: '#B1D2FF', fontFamily: FontFamily.regular, fontSize: 16, lineHeight: 23 },
   field: { minHeight: 72, marginTop: 15, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: '#007BDC', backgroundColor: 'rgba(3, 40, 86, 0.58)' }, fieldIcon: { width: 31 }, fieldCopy: { flex: 1 }, fieldLabel: { color: '#B8D8FF', fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 17 }, input: { height: 31, padding: 0, color: '#EFF7FF', fontFamily: FontFamily.regular, fontSize: 16 }, visibilityButton: { paddingLeft: 10, paddingVertical: 12 },
   options: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }, rememberControl: { flexDirection: 'row', alignItems: 'center', gap: 10 }, checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 1, borderColor: '#4A91D8', alignItems: 'center', justifyContent: 'center' }, checkboxChecked: { borderColor: '#009DFF', backgroundColor: '#009DFF' }, checkmark: { color: '#FFF', fontFamily: FontFamily.extraBold, fontSize: 15, lineHeight: 17 }, rememberText: { color: '#D3E5FF', fontFamily: FontFamily.regular, fontSize: 14 }, link: { color: '#00BDFF', fontFamily: FontFamily.semibold, fontSize: 14 },
-  signInButton: { marginTop: 24, borderRadius: 28, shadowColor: '#00BBFF', shadowOpacity: .48, shadowRadius: 15, shadowOffset: { width: 0, height: 7 }, elevation: 8 }, signInGradient: { height: 57, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 }, signInText: { color: '#FFF', fontFamily: FontFamily.semibold, fontSize: 17 }, arrow: { color: '#FFF', fontFamily: FontFamily.regular, fontSize: 28, lineHeight: 30 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 18, marginVertical: 23 }, dividerLine: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: '#057BD9' }, or: { color: '#B9D8FF', fontFamily: FontFamily.regular, fontSize: 14 },
-  socialButton: { height: 60, flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: '#007BD9', backgroundColor: 'rgba(3, 32, 69, 0.54)', paddingHorizontal: 23, marginBottom: 12 }, socialText: { flex: 1, marginLeft: 27, color: '#F4F8FF', fontFamily: FontFamily.medium, fontSize: 16 }, socialArrow: { color: '#C7E5FF', fontFamily: FontFamily.regular, fontSize: 32, lineHeight: 32 }, footer: { marginTop: 12, color: '#A9C9F3', textAlign: 'center', fontFamily: FontFamily.regular, fontSize: 14 }, pressed: { opacity: .78, transform: [{ scale: .99 }] },
+  signInButton: { marginTop: 20, borderRadius: 27, shadowColor: '#00BBFF', shadowOpacity: .48, shadowRadius: 15, shadowOffset: { width: 0, height: 7 }, elevation: 8 }, signInGradient: { height: 54, borderRadius: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 }, signInText: { color: '#FFF', fontFamily: FontFamily.semibold, fontSize: 17 }, arrow: { color: '#FFF', fontFamily: FontFamily.regular, fontSize: 28, lineHeight: 30 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 18, marginVertical: 18 }, dividerLine: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: '#057BD9' }, or: { color: '#B9D8FF', fontFamily: FontFamily.regular, fontSize: 14 },
+  socialButton: { height: 56, flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: '#007BD9', backgroundColor: 'rgba(3, 32, 69, 0.54)', paddingHorizontal: 23, marginBottom: 10 }, socialText: { flex: 1, marginLeft: 27, color: '#F4F8FF', fontFamily: FontFamily.medium, fontSize: 16 }, socialArrow: { color: '#C7E5FF', fontFamily: FontFamily.regular, fontSize: 32, lineHeight: 32 }, footer: { marginTop: 8, color: '#A9C9F3', textAlign: 'center', fontFamily: FontFamily.regular, fontSize: 14 }, pressed: { opacity: .78, transform: [{ scale: .99 }] },
 });
