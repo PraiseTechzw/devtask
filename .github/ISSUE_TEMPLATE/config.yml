@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/PraiseTechzw/devtask/security/advisories/new
+    about: Report security issues privately instead of opening a public issue.
+  - name: Support guidance
+    url: https://github.com/PraiseTechzw/devtask/blob/master/SUPPORT.md
+    about: Read the support guide before opening a configuration question.
