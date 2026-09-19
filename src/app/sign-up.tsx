@@ -1,5 +1,5 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { isClerkAPIResponseError } from "@clerk/expo";
+import { isClerkAPIResponseError, useSSO } from "@clerk/expo";
 import { useSignUp } from "@clerk/expo/legacy";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,6 +20,7 @@ import { FontFamily, Palette } from "@/constants/theme";
 export default function SignUpScreen() {
   const router = useRouter();
   const { isLoaded, signUp } = useSignUp();
+  const { startSSOFlow } = useSSO();
   const [name, setName] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +28,7 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [socialSubmitting, setSocialSubmitting] = useState<"oauth_google" | "oauth_github" | null>(null);
   const createAccount = async () => {
     if (!isLoaded) return;
     if (password !== confirmPassword) { setError("Passwords do not match."); return; }
@@ -39,6 +41,23 @@ export default function SignUpScreen() {
     } catch (caughtError) {
       setError(isClerkAPIResponseError(caughtError) ? caughtError.errors[0]?.longMessage ?? "Unable to create your account." : "Unable to create your account right now.");
     } finally { setSubmitting(false); }
+  };
+  const continueWithSocial = async (strategy: "oauth_google" | "oauth_github") => {
+    setError(null);
+    setSocialSubmitting(strategy);
+    try {
+      const { createdSessionId, setActive } = await startSSOFlow({ strategy });
+      if (!createdSessionId || !setActive) {
+        setError("The sign-in was cancelled before it finished.");
+        return;
+      }
+      await setActive({ session: createdSessionId });
+      router.replace("/onboarding");
+    } catch (caughtError) {
+      const clerkMessage = isClerkAPIResponseError(caughtError) ? caughtError.errors[0]?.longMessage : undefined;
+      const runtimeMessage = caughtError instanceof Error ? caughtError.message : undefined;
+      setError(clerkMessage || runtimeMessage || "Social sign-in could not start. Confirm this provider is enabled in Clerk and use a development build.");
+    } finally { setSocialSubmitting(null); }
   };
   return (
     <View style={styles.screen}>
@@ -144,8 +163,8 @@ export default function SignUpScreen() {
             <Text style={styles.or}>or</Text>
             <View style={styles.line} />
           </View>
-          <Social icon="google" label="Continue with Google" />
-          <Social icon="github" label="Continue with GitHub" />
+          <Social icon="google" label={socialSubmitting === "oauth_google" ? "Opening Google…" : "Continue with Google"} onPress={() => continueWithSocial("oauth_google")} />
+          <Social icon="github" label={socialSubmitting === "oauth_github" ? "Opening GitHub…" : "Continue with GitHub"} onPress={() => continueWithSocial("oauth_github")} />
           <Pressable
             accessibilityRole="button"
             onPress={() => router.replace("/sign-in")}
@@ -231,10 +250,11 @@ function PrimaryButton({
     </Pressable>
   );
 }
-function Social({ icon, label }: { icon: "google" | "github"; label: string }) {
+function Social({ icon, label, onPress }: { icon: "google" | "github"; label: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
+      onPress={onPress}
       style={({ pressed }) => [styles.social, pressed && styles.pressed]}
     >
       <FontAwesome

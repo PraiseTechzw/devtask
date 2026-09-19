@@ -43,8 +43,14 @@ export function SignInScreen() {
     setError(null);
     try {
       const { createdSessionId, setActive: activate } = await startSSOFlow({ strategy });
-      if (createdSessionId && activate) { await activate({ session: createdSessionId }); router.replace('/onboarding'); }
-    } catch (caughtError) { setError(isClerkAPIResponseError(caughtError) ? caughtError.errors[0]?.longMessage ?? 'Unable to continue with this provider.' : 'Unable to continue with this provider right now.'); }
+      if (!createdSessionId || !activate) { setError('The sign-in was cancelled before it finished.'); return; }
+      await activate({ session: createdSessionId });
+      router.replace('/onboarding');
+    } catch (caughtError) {
+      const clerkMessage = isClerkAPIResponseError(caughtError) ? caughtError.errors[0]?.longMessage : undefined;
+      const runtimeMessage = caughtError instanceof Error ? caughtError.message : undefined;
+      setError(clerkMessage || runtimeMessage || 'Social sign-in could not start. Confirm this provider is enabled in Clerk and use a development build.');
+    }
   };
 
   return <View style={styles.screen}>
