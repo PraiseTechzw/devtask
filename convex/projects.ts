@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import { requireCurrentUser } from './users';
 import { recomputeProjectHealth } from './health';
 
@@ -123,5 +123,13 @@ export const setState = mutation({
     const now = Date.now();
     await ctx.db.patch(project._id, { state: args.state, focus: args.state === 'active' ? project.focus : false, completedAt: args.state === 'completed' ? now : undefined, archivedAt: args.state === 'archived' ? now : undefined, updatedAt: now });
     if (args.state === 'active') await recomputeProjectHealth(ctx, project._id);
+  },
+});
+
+export const recomputeAllHealth = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const projects = await ctx.db.query('projects').collect();
+    await Promise.all(projects.filter((project) => project.state === 'active').map((project) => recomputeProjectHealth(ctx, project._id)));
   },
 });

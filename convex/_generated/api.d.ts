@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as crons from "../crons.js";
 import type * as features from "../features.js";
 import type * as github from "../github.js";
 import type * as health from "../health.js";
@@ -23,6 +24,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  crons: typeof crons;
   features: typeof features;
   github: typeof github;
   health: typeof health;

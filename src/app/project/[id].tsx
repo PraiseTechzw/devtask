@@ -2,7 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { api } from '../../../convex/_generated/api';
@@ -13,13 +13,15 @@ export default function ProjectDetailScreen() {
   const router = useRouter(); const { id } = useLocalSearchParams<{ id: string }>();
   const detail = useQuery(api.projects.get, id ? { projectId: id as never } : 'skip');
   const createFeature = useMutation(api.features.create); const toggleFeature = useMutation(api.features.toggleComplete);
+  const setFocus = useMutation(api.projects.setFocus); const setState = useMutation(api.projects.setState);
   const [title, setTitle] = useState(''); const [adding, setAdding] = useState(false); const [error, setError] = useState<string | null>(null);
   if (detail === undefined) return <AppShell title="Project"><Text style={styles.loading}>Loading project…</Text></AppShell>;
   if (!detail) return <AppShell title="Project"><View style={styles.empty}><Text style={styles.emptyTitle}>Project not found</Text><Pressable onPress={() => router.replace('/(app)/projects')}><Text style={styles.link}>Back to projects</Text></Pressable></View></AppShell>;
   const { project, features } = detail;
   const add = async () => { if (!title.trim()) return; setAdding(true); setError(null); try { await createFeature({ projectId: project._id, title, bucket: 'v1', weight: 'small' }); setTitle(''); } catch (caughtError) { setError(caughtError instanceof Error ? caughtError.message : 'Unable to add feature.'); } finally { setAdding(false); } };
   const color = project.health === 'active' ? '#00DDBE' : project.health === 'slowing' ? '#FFB020' : '#FF626C';
-  return <AppShell title={project.name} action={<Pressable accessibilityLabel="Project menu"><FontAwesome color="#B6D8FA" name="ellipsis-v" size={19} /></Pressable>}>
+  const confirmComplete = () => Alert.alert('Mark project as shipped?', 'This is a manual decision. You can keep working until you are ready to ship.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Mark shipped', onPress: () => void setState({ projectId: project._id, state: 'completed' }) }]);
+  return <AppShell title={project.name} action={<Pressable accessibilityLabel="Project actions" onPress={() => Alert.alert(project.name, undefined, [{ text: project.focus ? 'Focus selected' : 'Set as focus', onPress: () => void setFocus({ projectId: project._id }) }, { text: 'Mark shipped', onPress: confirmComplete }, { text: 'Archive project', style: 'destructive', onPress: () => void setState({ projectId: project._id, state: 'archived' }) }, { text: 'Cancel', style: 'cancel' }])}><FontAwesome color="#B6D8FA" name="ellipsis-v" size={19} /></Pressable>}>
     <Pressable accessibilityLabel="Back to projects" onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
     <View style={styles.hero}><ProgressRing color={color} value={project.progress} /><Text style={styles.focus}>{project.focus ? 'Your focus project' : 'Project'}</Text></View>
     <View style={[styles.health, { borderColor: color }]}><View style={[styles.dot, { backgroundColor: color }]} /><Text style={[styles.healthText, { color }]}>{project.health === 'active' ? 'Active' : project.health[0].toUpperCase() + project.health.slice(1)} · {project.healthReasons[0] || 'Progress is up to date'}</Text></View>
