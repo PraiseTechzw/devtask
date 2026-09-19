@@ -22,7 +22,7 @@ export const ensureCurrent = mutation({
     const { identity, user } = await requireCurrentUser(ctx);
     if (user) return user._id;
     const now = Date.now();
-    return await ctx.db.insert('users', { clerkId: identity.subject, timeZone: args.timeZone, onboardingStatus: 'notStarted', theme: 'dark', createdAt: now, updatedAt: now });
+    return await ctx.db.insert('users', { clerkId: identity.subject, timeZone: args.timeZone, onboardingStatus: 'notStarted', notificationsEnabled: true, theme: 'dark', createdAt: now, updatedAt: now });
   },
 });
 
@@ -36,7 +36,7 @@ export const completeOnboarding = mutation({
 });
 
 export const setPreferences = mutation({
-  args: { reminderTime: v.optional(v.string()), theme: v.optional(v.union(v.literal('dark'), v.literal('light'))) },
+  args: { reminderTime: v.optional(v.string()), notificationsEnabled: v.optional(v.boolean()), theme: v.optional(v.union(v.literal('dark'), v.literal('light'))) },
   handler: async (ctx, args) => {
     const { user } = await requireCurrentUser(ctx);
     if (!user) throw new Error('Create your profile first');

@@ -10,6 +10,7 @@ export default defineSchema({
     timeZone: v.string(),
     onboardingStatus: v.union(v.literal('notStarted'), v.literal('inProgress'), v.literal('complete')),
     reminderTime: v.optional(v.string()),
+    notificationsEnabled: v.optional(v.boolean()),
     theme: v.union(v.literal('dark'), v.literal('light')),
     createdAt: v.number(),
     updatedAt: v.number(),
