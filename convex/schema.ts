@@ -26,13 +26,19 @@ export default defineSchema({
     focus: v.boolean(),
     progress: v.number(),
     health: healthState,
+    healthScore: v.number(),
     healthReasons: v.array(v.string()),
     lastActivityAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
     archivedAt: v.optional(v.number()),
+    finishPromptShownAt: v.optional(v.number()),
   }).index('by_owner', ['ownerId']).index('by_owner_and_state', ['ownerId', 'state']).index('by_owner_and_repository', ['ownerId', 'repositoryId']),
+  healthEvents: defineTable({
+    ownerId: v.id('users'), projectId: v.id('projects'), previous: healthState, current: healthState,
+    score: v.number(), reasons: v.array(v.string()), evaluatedAt: v.number(),
+  }).index('by_project', ['projectId']).index('by_owner', ['ownerId']),
   features: defineTable({
     ownerId: v.id('users'),
     projectId: v.id('projects'),
@@ -81,4 +87,9 @@ export default defineSchema({
     visibility: v.union(v.literal('public'), v.literal('private')),
     updatedAt: v.number(),
   }).index('by_owner', ['ownerId']).index('by_owner_and_github_id', ['ownerId', 'githubRepositoryId']),
+  notifications: defineTable({
+    ownerId: v.id('users'), projectId: v.optional(v.id('projects')),
+    type: v.union(v.literal('finishLine'), v.literal('healthChanged'), v.literal('dailyNudge')),
+    title: v.string(), body: v.string(), deepLink: v.optional(v.string()), dateKey: v.string(), readAt: v.optional(v.number()), createdAt: v.number(),
+  }).index('by_owner', ['ownerId']).index('by_owner_and_date', ['ownerId', 'dateKey']).index('by_project', ['projectId']),
 });
