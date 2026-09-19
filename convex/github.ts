@@ -115,6 +115,34 @@ export const saveSyncResult = internalMutation({
   },
 });
 
+export const recordRetryableFailure = internalMutation({
+  args: {
+    repositoryId: v.id('repositories'),
+    connectionId: v.id('githubConnections'),
+    error: v.string(),
+    rateLimitResetAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const repository = await ctx.db.get(args.repositoryId);
+    if (!repository) return null;
+    const previous = await ctx.db.query('syncJobs').withIndex('by_repository', (q) => q.eq('repositoryId', args.repositoryId)).collect();
+    const attemptCount = Math.max(0, ...previous.map((job) => job.attemptCount)) + 1;
+    const delays = [60_000, 300_000, 900_000, 3_600_000];
+    if (attemptCount > delays.length) {
+      await ctx.db.patch(args.repositoryId, { syncError: args.error, availability: repository.availability || 'available', rateLimitResetAt: args.rateLimitResetAt, updatedAt: Date.now() });
+      await ctx.db.patch(args.connectionId, { lastError: args.error, rateLimitResetAt: args.rateLimitResetAt, updatedAt: Date.now() });
+      return null;
+    }
+    const delay = Math.max(delays[attemptCount - 1], args.rateLimitResetAt ? Math.max(0, args.rateLimitResetAt - Date.now()) : 0);
+    const now = Date.now();
+    const nextRetryAt = now + delay;
+    await ctx.db.patch(args.repositoryId, { syncError: args.error, availability: repository.availability || 'available', rateLimitResetAt: args.rateLimitResetAt, updatedAt: now });
+    await ctx.db.patch(args.connectionId, { lastError: args.error, rateLimitResetAt: args.rateLimitResetAt, updatedAt: now });
+    await ctx.db.insert('syncJobs', { ownerId: repository.ownerId, repositoryId: repository._id, trigger: 'retry', idempotencyKey: `${repository._id}:${nextRetryAt}`, state: 'queued', attemptCount, nextRetryAt, error: args.error });
+    return { delay, attemptCount };
+  },
+});
+
 export const runSyncRepository = internalAction({
   args: { repositoryId: v.id('repositories') },
   handler: async (ctx, args) => {
@@ -135,7 +163,8 @@ export const runSyncRepository = internalAction({
       return { status: 'missing' as const };
     }
     if (!commitsResponse.ok || !issuesResponse.ok) {
-      await ctx.runMutation(internal.github.saveSyncResult, { repositoryId: args.repositoryId, connectionId: target.connectionId, recentCommitCount: 0, openIssueCount: 0, openPullRequestCount: 0, availability: 'available', error: 'GitHub sync failed. Previous activity data was kept.', rateLimitResetAt });
+      const retry = await ctx.runMutation(internal.github.recordRetryableFailure, { repositoryId: args.repositoryId, connectionId: target.connectionId, error: 'GitHub sync failed. Previous activity data was kept.', rateLimitResetAt });
+      if (retry) await ctx.scheduler.runAfter(retry.delay, internal.github.runSyncRepository, { repositoryId: args.repositoryId });
       return { status: 'failed' as const };
     }
     const commits = await commitsResponse.json() as Array<{ commit?: { author?: { date?: string } } }>;

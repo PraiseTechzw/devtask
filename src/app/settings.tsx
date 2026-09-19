@@ -21,6 +21,7 @@ export default function SettingsScreen() {
   const savePreferences = useMutation(api.users.setPreferences);
   const disconnectGitHub = useMutation(api.github.disconnect);
   const clearData = useMutation(api.users.clearData);
+  const deleteAccount = useMutation(api.users.deleteAccount);
   const exportSummary = useQuery(api.users.exportSummary, isSignedIn ? {} : 'skip');
   const startGitHub = useAction(api.github.start);
   const darkMode = profile?.theme !== 'light';
@@ -67,7 +68,11 @@ export default function SettingsScreen() {
   };
   const clearAppData = () => Alert.alert('Clear app data?', 'This removes your projects, features, checklists, notifications, and GitHub metadata from DevTask. Your Clerk account remains.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Clear data', style: 'destructive', onPress: async () => { await clearData(); router.replace('/onboarding'); } },
+    { text: 'Clear data', style: 'destructive', onPress: async () => { try { await clearData(); router.replace('/onboarding'); } catch (error) { Alert.alert('Could not clear data', error instanceof Error ? error.message : 'Please try again.'); } } },
+  ]);
+  const removeAccount = () => Alert.alert('Delete account permanently?', 'This removes your DevTask profile, projects, features, checklist items, notifications, devices, and GitHub connection. Your Clerk account is not deleted from Clerk.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete account', style: 'destructive', onPress: async () => { try { await deleteAccount(); await signOut(); router.replace('/welcome'); } catch (error) { Alert.alert('Could not delete account', error instanceof Error ? error.message : 'Please try again.'); } } },
   ]);
   const connected = connection?.state === 'connected';
   const connectionLabel = connection === undefined ? 'Checking…' : connected ? 'Connected' : connection?.state === 'reauthorizationRequired' ? 'Reconnect required' : 'Not connected';
@@ -95,6 +100,9 @@ export default function SettingsScreen() {
     <Group title="Data">
       <SettingsRow icon="download" label="Export data" value={exportSummary === undefined ? 'Loading…' : 'Ready'} onPress={() => void exportData()} />
       <SettingsRow icon="trash-o" label="Clear app data" onPress={clearAppData} last />
+    </Group>
+    <Group title="Account access">
+      <SettingsRow icon="exclamation-triangle" label="Delete DevTask data" value="Permanent" onPress={removeAccount} last status="warning" />
     </Group>
     <Group title="Support">
       <SettingsRow icon="question-circle-o" label="Help Center" onPress={() => unavailable('Help Center')} />

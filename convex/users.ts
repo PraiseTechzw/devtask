@@ -63,6 +63,27 @@ export const clearData = mutation({
   },
 });
 
+export const deleteAccount = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    if (!user) return;
+    const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const features = (await Promise.all(projects.map((project) => ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', project._id)).collect()))).flat();
+    const checklist = await ctx.db.query('checklistItems').withIndex('by_owner_and_date', (q) => q.eq('ownerId', user._id)).collect();
+    const healthEvents = await ctx.db.query('healthEvents').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const notifications = await ctx.db.query('notifications').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const devices = await ctx.db.query('devices').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const repositories = await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const snapshots = (await Promise.all(repositories.map((repository) => ctx.db.query('activitySnapshots').withIndex('by_repository', (q) => q.eq('repositoryId', repository._id)).collect()))).flat();
+    const syncJobs = (await Promise.all(repositories.map((repository) => ctx.db.query('syncJobs').withIndex('by_repository', (q) => q.eq('repositoryId', repository._id)).collect()))).flat();
+    const connections = await ctx.db.query('githubConnections').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const oauthStates = (await ctx.db.query('githubOAuthStates').collect()).filter((state) => state.ownerId === user._id);
+    await Promise.all([...projects, ...features, ...checklist, ...healthEvents, ...notifications, ...devices, ...repositories, ...snapshots, ...syncJobs, ...connections, ...oauthStates].map((record) => ctx.db.delete(record._id)));
+    await ctx.db.delete(user._id);
+  },
+});
+
 export const exportSummary = query({
   args: {},
   handler: async (ctx) => {
