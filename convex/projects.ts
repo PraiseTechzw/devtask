@@ -40,11 +40,14 @@ export const home = query({
     const focusFeatures = focusProject ? await ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', focusProject._id)).collect() : [];
     const weightRank = { small: 0, medium: 1, large: 2 } as const;
     const nextFeature = focusFeatures.filter((feature) => feature.bucket === 'v1' && feature.state === 'open').sort((a, b) => weightRank[a.weight] - weightRank[b.weight] || a.order - b.order)[0] ?? null;
+    const repositories = await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const repositoryActivity = focusProject?.repositoryId ? repositories.find((repository) => repository.githubRepositoryId === focusProject.repositoryId) ?? null : null;
     return {
       projects: active,
       focusProject,
       nextFeature,
       nextFeatureEstimateMinutes: nextFeature ? ({ small: 15, medium: 30, large: 60 } as const)[nextFeature.weight] : null,
+      repositoryActivity: repositoryActivity ? { availability: repositoryActivity.availability, lastSyncAt: repositoryActivity.lastSyncAt, syncError: repositoryActivity.syncError, latestCommitAt: repositoryActivity.latestCommitAt } : null,
       summary: {
         active: active.length,
         completed: projects.filter((project) => project.state === 'completed').length,
@@ -96,9 +99,13 @@ export const create = mutation({
     if (!user) throw new Error('Create your profile before adding a project');
     const name = args.name.trim();
     if (name.length < 1 || name.length > 80) throw new Error('Project names must be 1–80 characters');
+    const linkedRepository = args.repositoryId ? undefined : args.repositoryUrl ? (await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect()).find((repository) => repository.url === args.repositoryUrl) : undefined;
+    const repositoryId = args.repositoryId ?? linkedRepository?.githubRepositoryId;
+    const repositoryName = args.repositoryName ?? linkedRepository?.fullName;
+    const repositoryUrl = args.repositoryUrl ?? linkedRepository?.url;
     const now = Date.now();
     const hasFocus = (await ctx.db.query('projects').withIndex('by_owner_and_state', (q) => q.eq('ownerId', user._id).eq('state', 'active')).collect()).some((project) => project.focus);
-    return await ctx.db.insert('projects', { ownerId: user._id, name, deadline: args.deadline, repositoryId: args.repositoryId, repositoryName: args.repositoryName, repositoryUrl: args.repositoryUrl, state: 'active', focus: !hasFocus, progress: 0, health: 'active', healthScore: 100, healthReasons: ['Define your features to unlock progress'], createdAt: now, updatedAt: now });
+    return await ctx.db.insert('projects', { ownerId: user._id, name, deadline: args.deadline, repositoryId, repositoryName, repositoryUrl, state: 'active', focus: !hasFocus, progress: 0, health: 'active', healthScore: 100, healthReasons: ['Define your features to unlock progress'], createdAt: now, updatedAt: now });
   },
 });
 
@@ -131,5 +138,49 @@ export const recomputeAllHealth = internalMutation({
   handler: async (ctx) => {
     const projects = await ctx.db.query('projects').collect();
     await Promise.all(projects.filter((project) => project.state === 'active').map((project) => recomputeProjectHealth(ctx, project._id)));
+  },
+});
+
+export const update = mutation({
+  args: {
+    projectId: v.id('projects'),
+    name: v.optional(v.string()),
+    deadline: v.optional(v.string()),
+    repositoryId: v.optional(v.string()),
+    repositoryName: v.optional(v.string()),
+    repositoryUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const project = await ctx.db.get(args.projectId);
+    if (!user || !project || project.ownerId !== user._id) throw new Error('Project not found');
+    const name = args.name?.trim();
+    if (name !== undefined && (!name || name.length > 80)) throw new Error('Project names must be 1–80 characters');
+    const repositoryId = args.repositoryId;
+    if (repositoryId) {
+      const duplicate = await ctx.db.query('projects').withIndex('by_owner_and_repository', (q) => q.eq('ownerId', user._id).eq('repositoryId', repositoryId)).collect();
+      if (duplicate.some((item) => item._id !== project._id && item.state !== 'archived')) throw new Error('That repository is already linked to another project');
+    }
+    await ctx.db.patch(project._id, {
+      ...(name !== undefined ? { name } : {}),
+      ...(args.deadline !== undefined ? { deadline: args.deadline || undefined } : {}),
+      ...(args.repositoryId !== undefined ? { repositoryId: args.repositoryId || undefined, repositoryName: args.repositoryId ? args.repositoryName || undefined : undefined, repositoryUrl: args.repositoryId ? args.repositoryUrl || undefined : undefined } : {}),
+      updatedAt: Date.now(),
+    });
+    await recomputeProjectHealth(ctx, project._id);
+  },
+});
+
+export const setFocusByRecommendation = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    if (!user) return null;
+    const active = await ctx.db.query('projects').withIndex('by_owner_and_state', (q) => q.eq('ownerId', user._id).eq('state', 'active')).collect();
+    const urgency = { dying: 0, stalled: 1, slowing: 2, active: 3 } as const;
+    const candidate = active.sort((a, b) => urgency[a.health] - urgency[b.health] || (a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY) - (b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY) || a.progress - b.progress || b.createdAt - a.createdAt)[0];
+    if (!candidate) return null;
+    await Promise.all(active.map((project) => ctx.db.patch(project._id, { focus: project._id === candidate._id, updatedAt: Date.now() })));
+    return candidate._id;
   },
 });

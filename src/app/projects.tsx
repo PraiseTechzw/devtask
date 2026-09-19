@@ -2,14 +2,14 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { AppShell } from '@/components/app-shell';
 import { api } from '../../convex/_generated/api';
 import { FontFamily, Palette } from '@/constants/theme';
 
-type ProjectStatus = 'Active' | 'In Progress' | 'On Hold';
+type ProjectStatus = 'Active' | 'Slowing' | 'Stalled' | 'Dying' | 'Completed';
 type ProjectItem = {
   id: string;
   name: string;
@@ -21,12 +21,14 @@ type ProjectItem = {
   status: ProjectStatus;
 };
 
-const filters = ['All', 'Active', 'Completed', 'On Hold'] as const;
+const filters = ['All', 'Active', 'Slowing', 'Stalled', 'Dying', 'Completed'] as const;
 type Filter = (typeof filters)[number];
 
 function statusColor(status: ProjectStatus) {
-  if (status === 'On Hold') return '#FF626C';
-  return status === 'In Progress' ? '#FF9B4A' : '#00DDBE';
+  if (status === 'Dying') return '#FF626C';
+  if (status === 'Stalled') return '#FF9B4A';
+  if (status === 'Slowing') return '#FFB020';
+  return status === 'Completed' ? '#00CFF5' : '#00DDBE';
 }
 
 export default function ProjectsScreen() {
@@ -35,16 +37,16 @@ export default function ProjectsScreen() {
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
   const projectList: ProjectItem[] = (projects ?? []).map((project) => ({
-    id: project._id, name: project.name, progress: project.progress, health: project.health, detail: project.lastActivityAt ? 'Updated recently' : 'No activity yet', category: project.repositoryName || 'Personal project', budget: project.focus ? 'Focus' : 'Project', status: project.state === 'completed' ? 'In Progress' : project.health === 'stalled' || project.health === 'dying' ? 'On Hold' : project.health === 'slowing' ? 'In Progress' : 'Active',
+    id: project._id, name: project.name, progress: project.progress, health: project.health, detail: project.lastActivityAt ? 'Updated recently' : 'No activity yet', category: project.repositoryName || 'Personal project', budget: project.focus ? 'Focus' : 'Project', status: project.state === 'completed' ? 'Completed' : project.health[0].toUpperCase() + project.health.slice(1) as ProjectStatus,
   }));
   const visibleProjects = useMemo(() => projectList.filter((project) => {
-    const matchesFilter = filter === 'All' || (filter === 'Active' && project.status === 'Active') || (filter === 'On Hold' && project.status === 'On Hold');
+    const matchesFilter = filter === 'All' || project.status === filter;
     return matchesFilter && project.name.toLowerCase().includes(query.trim().toLowerCase());
   }), [filter, projectList, query]);
 
   return <AppShell title="Projects" action={<Pressable accessibilityLabel="Add project" onPress={() => router.push('/add-project')}><Text style={styles.add}>+</Text></Pressable>}>
     <View style={styles.search}><FontAwesome color="#8DB9E7" name="search" size={12} /><TextInput accessibilityLabel="Search projects" onChangeText={setQuery} placeholder="Search projects..." placeholderTextColor="#8DB9E7" style={styles.searchInput} value={query} /></View>
-    <View style={styles.filters}>{filters.map((item) => <Pressable accessibilityRole="button" key={item} onPress={() => setFilter(item)} style={[styles.filter, filter === item && styles.selected]}><Text style={[styles.filterText, filter === item && styles.selectedText]}>{item}</Text></Pressable>)}</View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{filters.map((item) => <Pressable accessibilityRole="button" key={item} onPress={() => setFilter(item)} style={[styles.filter, filter === item && styles.selected]}><Text style={[styles.filterText, filter === item && styles.selectedText]}>{item}</Text></Pressable>)}</ScrollView>
     {visibleProjects.length ? visibleProjects.map((project) => {
       const color = statusColor(project.status);
       return <Pressable accessibilityRole="button" key={project.id} onPress={() => router.push(`/project/${project.id}` as never)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>

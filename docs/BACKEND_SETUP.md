@@ -32,11 +32,11 @@ npx convex dev
 
 This deploys `auth.config.ts`, the schema, and backend functions and regenerates `convex/_generated`. Keep the process running while you build client screens.
 
-## 4. GitHub connection (do this before wiring real GitHub OAuth)
+## 4. GitHub connection
 
 Create a dedicated GitHub OAuth App. Its client secret belongs only in Convex environment variables; never add it to Expo `.env` or the device.
 
-Required Convex environment variables when that flow is implemented:
+Required Convex environment variables for the implemented OAuth, repository picker, and sync flow:
 
 ```text
 GITHUB_OAUTH_CLIENT_ID=...
@@ -45,6 +45,10 @@ GITHUB_OAUTH_REDIRECT_URI=...
 ```
 
 The redirect URI must point to a Convex HTTP action. GitHub OAuth needs the `repo` scope for private repositories, and `read:user` / `user:email` only if profile identification is needed.
+
+After connection, DevTask stores normalized repository metadata and refreshes imported repository activity through the six-hour Convex cron. Project detail can request a manual refresh. Access failures remain visible as reconnect or missing-repository states instead of deleting the project.
+
+Set `GITHUB_TOKEN_ENCRYPTION_KEY` to a base64-encoded 32-byte key in Convex. The key encrypts GitHub access tokens at rest and must never be included in the Expo client bundle.
 
 ## 5. Before production
 

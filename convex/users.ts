@@ -43,3 +43,33 @@ export const setPreferences = mutation({
     await ctx.db.patch(user._id, { ...args, updatedAt: Date.now() });
   },
 });
+
+export const clearData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    if (!user) return;
+    const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const features = await Promise.all(projects.map((project) => ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', project._id)).collect()));
+    const checklist = await ctx.db.query('checklistItems').withIndex('by_owner_and_date', (q) => q.eq('ownerId', user._id)).collect();
+    const healthEvents = await ctx.db.query('healthEvents').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const notifications = await ctx.db.query('notifications').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const devices = await ctx.db.query('devices').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const repositories = await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const snapshots = (await Promise.all(repositories.map((repository) => ctx.db.query('activitySnapshots').withIndex('by_repository', (q) => q.eq('repositoryId', repository._id)).collect()))).flat();
+    const syncJobs = (await Promise.all(repositories.map((repository) => ctx.db.query('syncJobs').withIndex('by_repository', (q) => q.eq('repositoryId', repository._id)).collect()))).flat();
+    await Promise.all([...projects, ...features.flat(), ...checklist, ...healthEvents, ...notifications, ...devices, ...repositories, ...snapshots, ...syncJobs].map((record) => ctx.db.delete(record._id)));
+    await ctx.db.patch(user._id, { onboardingStatus: 'inProgress', reminderTime: undefined, notificationsEnabled: false, updatedAt: Date.now() });
+  },
+});
+
+export const exportSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    if (!user) return null;
+    const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const features = (await Promise.all(projects.map((project) => ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', project._id)).collect()))).flat();
+    return { exportedAt: new Date().toISOString(), profile: { timeZone: user.timeZone, onboardingStatus: user.onboardingStatus, reminderTime: user.reminderTime }, projects, features };
+  },
+});

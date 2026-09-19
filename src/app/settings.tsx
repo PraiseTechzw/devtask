@@ -2,7 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useAuth, useClerk, useUser } from '@clerk/expo';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
 
 import { AppShell } from '@/components/app-shell';
@@ -19,6 +19,8 @@ export default function SettingsScreen() {
   const profile = useQuery(api.users.getCurrent, isSignedIn ? {} : 'skip');
   const connection = useQuery(api.github.getConnection, isSignedIn ? {} : 'skip');
   const savePreferences = useMutation(api.users.setPreferences);
+  const disconnectGitHub = useMutation(api.github.disconnect); const clearData = useMutation(api.users.clearData);
+  const exportSummary = useQuery(api.users.exportSummary, isSignedIn ? {} : 'skip');
   const startGitHub = useAction(api.github.start);
   const darkMode = profile?.theme !== 'light';
   const notificationsEnabled = profile?.notificationsEnabled ?? true;
@@ -39,7 +41,7 @@ export default function SettingsScreen() {
   const unavailable = (name: string) => Alert.alert(`${name} isn't available yet`, 'This action will be added once the data and support services are connected.');
   const manageGitHub = async () => {
     if (connection?.state === 'connected') {
-      Alert.alert('GitHub is connected', 'Your repositories are available when you add or edit a project.');
+      Alert.alert('GitHub is connected', 'Disconnecting removes the stored GitHub token and unlinks repository metadata from your projects.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => void disconnectGitHub() }]);
       return;
     }
     try {
@@ -48,6 +50,11 @@ export default function SettingsScreen() {
       Alert.alert('Could not connect GitHub', error instanceof Error ? error.message : 'Please try again.');
     }
   };
+  const exportData = async () => {
+    if (!exportSummary) return;
+    await Share.share({ title: 'DevTask data export', message: JSON.stringify(exportSummary, null, 2) });
+  };
+  const clearAppData = () => Alert.alert('Clear app data?', 'This removes your projects, features, checklists, notifications, and GitHub metadata from DevTask. Your Clerk account remains.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear data', style: 'destructive', onPress: async () => { await clearData(); router.replace('/onboarding'); } }]);
   const connected = connection?.state === 'connected';
   const connectionLabel = connection === undefined ? 'Checking…' : connected ? 'Connected' : connection?.state === 'reauthorizationRequired' ? 'Reconnect required' : 'Not connected';
   const accountName = user?.fullName || user?.firstName || 'DevTask member';
@@ -72,8 +79,8 @@ export default function SettingsScreen() {
       <SettingsRow icon="clock-o" label="Nudge time" value={profile?.reminderTime || 'Not set'} onPress={() => router.push('/onboarding')} last />
     </Group>
     <Group title="Data">
-      <SettingsRow icon="download" label="Export Data" onPress={() => unavailable('Data export')} />
-      <SettingsRow icon="trash-o" label="Clear app data" onPress={() => unavailable('Clear app data')} last />
+      <SettingsRow icon="download" label="Export Data" value={exportSummary ? 'Ready' : 'Preparing…'} onPress={() => void exportData()} />
+      <SettingsRow icon="trash-o" label="Clear app data" onPress={clearAppData} last />
     </Group>
     <Group title="Support">
       <SettingsRow icon="question-circle-o" label="Help Center" onPress={() => unavailable('Help Center')} />

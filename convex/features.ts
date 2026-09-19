@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { mutation, type MutationCtx } from './_generated/server';
+import { mutation, query, type MutationCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { requireCurrentUser } from './users';
 import { createNotification, recomputeProjectHealth } from './health';
@@ -8,6 +8,15 @@ import { createNotification, recomputeProjectHealth } from './health';
 const weightValue = { small: 1, medium: 2, large: 3 } as const;
 const weight = v.union(v.literal('small'), v.literal('medium'), v.literal('large'));
 const bucket = v.union(v.literal('v1'), v.literal('backlog'));
+
+export const get = query({
+  args: { featureId: v.id('features') },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const feature = await ctx.db.get(args.featureId);
+    return user && feature?.ownerId === user._id ? feature : null;
+  },
+});
 
 async function updateProjectProgress(ctx: MutationCtx, projectId: Id<'projects'>) {
   const project = await ctx.db.get(projectId);
