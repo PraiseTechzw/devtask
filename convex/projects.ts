@@ -17,6 +17,29 @@ export const list = query({
   },
 });
 
+export const home = query({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    if (!user) return null;
+    const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect();
+    const active = projects.filter((project) => project.state === 'active').sort((a, b) => Number(b.focus) - Number(a.focus) || b.updatedAt - a.updatedAt);
+    const focusProject = active.find((project) => project.focus) ?? active[0] ?? null;
+    const focusFeatures = focusProject ? await ctx.db.query('features').withIndex('by_project', (q) => q.eq('projectId', focusProject._id)).collect() : [];
+    const nextFeature = focusFeatures.filter((feature) => feature.bucket === 'v1' && feature.state === 'open').sort((a, b) => a.order - b.order)[0] ?? null;
+    return {
+      projects: active,
+      focusProject,
+      nextFeature,
+      summary: {
+        active: active.length,
+        completed: projects.filter((project) => project.state === 'completed').length,
+        slowing: active.filter((project) => project.health === 'slowing' || project.health === 'stalled' || project.health === 'dying').length,
+      },
+    };
+  },
+});
+
 export const get = query({
   args: { projectId: v.id('projects') },
   handler: async (ctx, args) => {
