@@ -1,148 +1,126 @@
 import { Image } from 'expo-image';
 import * as SplashScreen from 'expo-splash-screen';
-import { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
-import Animated, { Easing, Keyframe } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
-const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
-const DURATION = 600;
+const SPLASH_DURATION = 1400;
 
+/** Matches the branded loading handoff after the native launch screen. */
 export function AnimatedSplashOverlay() {
-  const [animate, setAnimate] = useState(false);
   const [visible, setVisible] = useState(true);
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(1, { duration: 1050 });
+    const timer = setTimeout(() => setVisible(false), SPLASH_DURATION);
+    return () => clearTimeout(timer);
+  }, [progress]);
+
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${Math.max(progress.value * 100, 8)}%`,
+  }));
 
   if (!visible) return null;
 
-  const splashKeyframe = new Keyframe({
-    0: {
-      transform: [{ scale: 1 }],
-      opacity: 1,
-    },
-    20: {
-      opacity: 1,
-    },
-    70: {
-      opacity: 0,
-      easing: Easing.elastic(0.7),
-    },
-    100: {
-      opacity: 0,
-      transform: [{ scale: 1 }],
-      easing: Easing.elastic(0.7),
-    },
-  });
-
-  const image = <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />;
-
-  return animate ? (
-    <Animated.View
-      entering={splashKeyframe.duration(DURATION).withCallback((finished) => {
-        'worklet';
-        if (finished) {
-          scheduleOnRN(setVisible, false);
-        }
-      })}
-      style={styles.splashOverlay}>
-      {image}
-    </Animated.View>
-  ) : (
-    <View
-      onLayout={() => {
-        SplashScreen.hideAsync().finally(() => {
-          setAnimate(true);
-        });
-      }}
-      style={styles.splashOverlay}>
-      {image}
-    </View>
-  );
-}
-
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: INITIAL_SCALE_FACTOR }],
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(0.7),
-  },
-});
-
-const logoKeyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 1.3 }],
-    opacity: 0,
-  },
-  40: {
-    transform: [{ scale: 1.3 }],
-    opacity: 0,
-    easing: Easing.elastic(0.7),
-  },
-  100: {
-    opacity: 1,
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(0.7),
-  },
-});
-
-const glowKeyframe = new Keyframe({
-  0: {
-    transform: [{ rotateZ: '0deg' }],
-  },
-  100: {
-    transform: [{ rotateZ: '7200deg' }],
-  },
-});
-
-export function AnimatedIcon() {
   return (
-    <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
+    <Animated.View
+      entering={FadeIn.duration(120)}
+      exiting={FadeOut.duration(300)}
+      onLayout={() => void SplashScreen.hideAsync()}
+      style={styles.overlay}>
+      <View style={styles.content}>
+        <View style={styles.brand}>
+          <View style={styles.iconGlow} />
+          <Image source={require('@/assets/images/icon.png')} style={styles.icon} />
+          <Text style={styles.name}>DevTask</Text>
+          <Text style={styles.tagline}>Build. Finish. Grow.</Text>
+        </View>
 
-      <Animated.View entering={keyframe.duration(DURATION)} style={styles.background} />
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
-      </Animated.View>
-    </View>
+        <View style={styles.loading}>
+          <Text style={styles.loadingLabel}>Loading your productivity...</Text>
+          <View style={styles.track}>
+            <Animated.View style={[styles.progress, progressStyle]} />
+          </View>
+        </View>
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  imageContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  glow: {
-    width: 201,
-    height: 201,
-    position: 'absolute',
-  },
-  iconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 128,
-    height: 128,
-    zIndex: 100,
-  },
-  image: {
-    width: 76,
-    height: 71,
-  },
-  background: {
-    borderRadius: 40,
-    experimental_backgroundImage: `linear-gradient(180deg, #3C9FFE, #0274DF)`,
-    width: 128,
-    height: 128,
-    position: 'absolute',
-  },
-  splashOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: '#208AEF',
-    alignItems: 'center',
-    justifyContent: 'center',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
+    backgroundColor: '#030B18',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingTop: '44%',
+    paddingBottom: '24%',
+  },
+  brand: {
+    alignItems: 'center',
+  },
+  iconGlow: {
+    position: 'absolute',
+    top: -36,
+    width: 184,
+    height: 184,
+    borderRadius: 92,
+    backgroundColor: '#007BFF',
+    opacity: 0.18,
+  },
+  icon: {
+    width: 118,
+    height: 118,
+  },
+  name: {
+    marginTop: 22,
+    color: '#F7FAFF',
+    fontSize: 38,
+    lineHeight: 44,
+    fontWeight: '800',
+    letterSpacing: -1.2,
+  },
+  tagline: {
+    marginTop: 4,
+    color: '#1FCEFF',
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  loading: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  loadingLabel: {
+    marginBottom: 12,
+    color: '#7CA9D9',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  track: {
+    width: '100%',
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: '#16365E',
+  },
+  progress: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#168BFF',
   },
 });

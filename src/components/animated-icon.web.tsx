@@ -57,16 +57,12 @@ const glowKeyframe = new Keyframe({
 export function AnimatedIcon() {
   return (
     <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
-
       <Animated.View style={styles.background} entering={keyframe.duration(DURATION)}>
         <div className={classes.expoLogoBackground} />
       </Animated.View>
 
       <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
+        <Image style={styles.image} source={require('@/assets/images/icon.png')} />
       </Animated.View>
     </View>
   );
@@ -97,8 +93,8 @@ const styles = StyleSheet.create({
   },
   image: {
     position: 'absolute',
-    width: 76,
-    height: 71,
+    width: 96,
+    height: 96,
   },
   background: {
     width: 128,
