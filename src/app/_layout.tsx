@@ -7,6 +7,7 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { DevTaskConvexProvider } from '@/components/convex-provider';
+import { NotificationService } from '@/components/notification-service';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,6 +27,7 @@ export default function TabLayout() {
       <ClerkProvider publishableKey={clerkPublishableKey!} tokenCache={tokenCache}>
         <DevTaskConvexProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <NotificationService />
             <AnimatedSplashOverlay />
             <Slot />
           </ThemeProvider>
