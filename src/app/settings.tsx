@@ -6,7 +6,7 @@ import { Alert, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-n
 import * as Linking from 'expo-linking';
 
 import { AppShell } from '@/components/app-shell';
-import { FontFamily } from '@/constants/theme';
+import { Border, FontFamily, Palette, Radius, Spacing, Typography } from '@/constants/theme';
 import { api } from '../../convex/_generated/api';
 
 type IconName = React.ComponentProps<typeof FontAwesome>['name'];
@@ -19,7 +19,8 @@ export default function SettingsScreen() {
   const profile = useQuery(api.users.getCurrent, isSignedIn ? {} : 'skip');
   const connection = useQuery(api.github.getConnection, isSignedIn ? {} : 'skip');
   const savePreferences = useMutation(api.users.setPreferences);
-  const disconnectGitHub = useMutation(api.github.disconnect); const clearData = useMutation(api.users.clearData);
+  const disconnectGitHub = useMutation(api.github.disconnect);
+  const clearData = useMutation(api.users.clearData);
   const exportSummary = useQuery(api.users.exportSummary, isSignedIn ? {} : 'skip');
   const startGitHub = useAction(api.github.start);
   const darkMode = profile?.theme !== 'light';
@@ -41,7 +42,10 @@ export default function SettingsScreen() {
   const unavailable = (name: string) => Alert.alert(`${name} isn't available yet`, 'This action will be added once the data and support services are connected.');
   const manageGitHub = async () => {
     if (connection?.state === 'connected') {
-      Alert.alert('GitHub is connected', 'Disconnecting removes the stored GitHub token and unlinks repository metadata from your projects.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => void disconnectGitHub() }]);
+      Alert.alert('GitHub is connected', 'Disconnecting removes the stored GitHub token and unlinks repository metadata from your projects.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Disconnect', style: 'destructive', onPress: () => void disconnectGitHub() },
+      ]);
       return;
     }
     try {
@@ -51,10 +55,20 @@ export default function SettingsScreen() {
     }
   };
   const exportData = async () => {
-    if (!exportSummary) return;
-    await Share.share({ title: 'DevTask data export', message: JSON.stringify(exportSummary, null, 2) });
+    if (!exportSummary) {
+      Alert.alert('Export is not ready', 'Your data is still loading. Please try again in a moment.');
+      return;
+    }
+    try {
+      await Share.share({ title: 'DevTask data export', message: JSON.stringify(exportSummary, null, 2) });
+    } catch (error) {
+      Alert.alert('Could not export data', error instanceof Error ? error.message : 'Please try again.');
+    }
   };
-  const clearAppData = () => Alert.alert('Clear app data?', 'This removes your projects, features, checklists, notifications, and GitHub metadata from DevTask. Your Clerk account remains.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear data', style: 'destructive', onPress: async () => { await clearData(); router.replace('/onboarding'); } }]);
+  const clearAppData = () => Alert.alert('Clear app data?', 'This removes your projects, features, checklists, notifications, and GitHub metadata from DevTask. Your Clerk account remains.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Clear data', style: 'destructive', onPress: async () => { await clearData(); router.replace('/onboarding'); } },
+  ]);
   const connected = connection?.state === 'connected';
   const connectionLabel = connection === undefined ? 'Checking…' : connected ? 'Connected' : connection?.state === 'reauthorizationRequired' ? 'Reconnect required' : 'Not connected';
   const accountName = user?.fullName || user?.firstName || 'DevTask member';
@@ -74,12 +88,12 @@ export default function SettingsScreen() {
       <SettingsRow icon="github" label="GitHub connection" value={connectionLabel} onPress={() => void manageGitHub()} last status={connected ? 'positive' : connection?.state === 'reauthorizationRequired' ? 'warning' : undefined} />
     </Group>
     <Group title="Preferences">
-      <SettingsRow icon="moon-o" label="Dark Mode" trailing={<Switch accessibilityLabel="Dark Mode" disabled={profile === undefined} onValueChange={(value) => void updatePreference({ theme: value ? 'dark' : 'light' })} thumbColor="#E7F5FF" trackColor={{ false: '#34516E', true: '#087FFF' }} value={darkMode} />} />
-      <SettingsRow icon="bell-o" label="Daily nudges" trailing={<Switch accessibilityLabel="Daily nudges" disabled={profile === undefined} onValueChange={(value) => void updatePreference({ notificationsEnabled: value })} thumbColor="#E7F5FF" trackColor={{ false: '#34516E', true: '#087FFF' }} value={notificationsEnabled} />} />
+      <SettingsRow icon="moon-o" label="Dark Mode" trailing={<Switch accessibilityLabel="Dark Mode" disabled={profile === undefined} onValueChange={(value) => void updatePreference({ theme: value ? 'dark' : 'light' })} thumbColor="#E7F5FF" trackColor={{ false: '#34516E', true: Palette.sky }} value={darkMode} />} />
+      <SettingsRow icon="bell-o" label="Daily nudges" trailing={<Switch accessibilityLabel="Daily nudges" disabled={profile === undefined} onValueChange={(value) => void updatePreference({ notificationsEnabled: value })} thumbColor="#E7F5FF" trackColor={{ false: '#34516E', true: Palette.sky }} value={notificationsEnabled} />} />
       <SettingsRow icon="clock-o" label="Nudge time" value={profile?.reminderTime || 'Not set'} onPress={() => router.push('/onboarding')} last />
     </Group>
     <Group title="Data">
-      <SettingsRow icon="download" label="Export Data" value={exportSummary ? 'Ready' : 'Preparing…'} onPress={() => void exportData()} />
+      <SettingsRow icon="download" label="Export data" value={exportSummary === undefined ? 'Loading…' : 'Ready'} onPress={() => void exportData()} />
       <SettingsRow icon="trash-o" label="Clear app data" onPress={clearAppData} last />
     </Group>
     <Group title="Support">
@@ -97,14 +111,17 @@ function Group({ children, title }: { children: React.ReactNode; title: string }
 
 function SettingsRow({ icon, label, value, trailing, last = false, onPress, status }: { icon: IconName; label: string; value?: string; trailing?: React.ReactNode; last?: boolean; onPress?: () => void; status?: 'positive' | 'warning' }) {
   return <Pressable accessibilityRole="button" disabled={!onPress && !trailing} onPress={onPress} style={({ pressed }) => [styles.row, !last && styles.rowDivider, pressed && onPress && styles.rowPressed]}>
-    <View style={styles.iconWrap}><FontAwesome color="#88C7FF" name={icon} size={11} /></View><Text style={styles.rowLabel}>{label}</Text>
-    {trailing || <>{value ? <Text style={[styles.rowValue, status === 'positive' && styles.positive, status === 'warning' && styles.warning]}>{value}</Text> : null}{onPress ? <FontAwesome color="#78A7D4" name="chevron-right" size={9} /> : null}</>}
+    <View style={styles.iconWrap}><FontAwesome color={Palette.cyan} name={icon} size={14} /></View><Text style={styles.rowLabel}>{label}</Text>
+    {trailing || <>{value ? <Text style={[styles.rowValue, status === 'positive' && styles.positive, status === 'warning' && styles.warning]}>{value}</Text> : null}{onPress ? <FontAwesome color={Palette.muted} name="chevron-right" size={11} /> : null}</>}
   </Pressable>;
 }
 
 const styles = StyleSheet.create({
-  profile: { minHeight: 65, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 9, borderWidth: 1, borderColor: '#0B5BA2', backgroundColor: '#062549' },
-  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#A8D9FF', backgroundColor: '#0A4E8A' }, avatarText: { color: '#FFF', fontFamily: FontFamily.bold, fontSize: 17 }, profileCopy: { flex: 1, minWidth: 0 }, name: { color: '#F2F8FF', fontFamily: FontFamily.semibold, fontSize: 11 }, role: { marginTop: 1, color: '#86AED8', fontFamily: FontFamily.regular, fontSize: 8 }, online: { marginTop: 3, color: '#00DDBE', fontFamily: FontFamily.medium, fontSize: 7 },
-  groupWrap: { marginTop: 12 }, groupTitle: { marginBottom: 5, color: '#B7D9F8', fontFamily: FontFamily.semibold, fontSize: 10 }, group: { overflow: 'hidden', borderRadius: 8, borderWidth: 1, borderColor: '#0A5A9E', backgroundColor: '#062549' }, row: { minHeight: 34, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 7 }, rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#164675' }, iconWrap: { width: 17, height: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 9, borderWidth: 1, borderColor: '#176CB5', backgroundColor: '#092D56' }, rowLabel: { flex: 1, color: '#E5F2FF', fontFamily: FontFamily.regular, fontSize: 9 }, rowValue: { marginRight: 2, color: '#86C5FF', fontFamily: FontFamily.medium, fontSize: 8 }, positive: { color: '#00DDBE' }, warning: { color: '#FFC343' },
-  logout: { marginTop: 18, marginBottom: 8, alignItems: 'center', paddingVertical: 10, borderRadius: 9, borderWidth: 1, borderColor: '#8C3641', backgroundColor: '#1C1623' }, logoutText: { color: '#FF939B', fontFamily: FontFamily.semibold, fontSize: 10 }, pressed: { opacity: 0.78 }, rowPressed: { backgroundColor: '#0A315E' },
+  profile: { minHeight: 82, padding: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderRadius: Radius.medium, borderWidth: Border.default, borderColor: '#006DD1', backgroundColor: Palette.surface },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Palette.cyan, backgroundColor: '#073B7B' },
+  avatarText: { color: Palette.white, fontFamily: FontFamily.bold, fontSize: 19 },
+  profileCopy: { flex: 1, minWidth: 0, gap: 2 }, name: { ...Typography.h4, color: Palette.white }, role: { ...Typography.small, color: Palette.muted }, online: { ...Typography.small, color: Palette.mint },
+  groupWrap: { marginTop: Spacing.five }, groupTitle: { ...Typography.small, marginBottom: Spacing.two, color: Palette.muted, textTransform: 'uppercase', letterSpacing: 0.7 }, group: { overflow: 'hidden', borderRadius: Radius.medium, borderWidth: Border.default, borderColor: Palette.border, backgroundColor: Palette.surface },
+  row: { minHeight: 58, paddingHorizontal: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.three }, rowDivider: { borderBottomWidth: Border.hairline, borderBottomColor: Palette.border }, iconWrap: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.small, borderWidth: Border.default, borderColor: '#006DD1', backgroundColor: Palette.backgroundDeep }, rowLabel: { flex: 1, ...Typography.caption, color: Palette.white }, rowValue: { marginRight: Spacing.one, ...Typography.small, color: '#86C5FF' }, positive: { color: Palette.mint }, warning: { color: Palette.amber },
+  logout: { marginTop: Spacing.six, marginBottom: Spacing.two, alignItems: 'center', paddingVertical: Spacing.three, borderRadius: Radius.medium, borderWidth: Border.default, borderColor: '#8C3641', backgroundColor: '#1C1623' }, logoutText: { ...Typography.caption, color: '#FF939B', fontFamily: FontFamily.semibold }, pressed: { opacity: 0.78 }, rowPressed: { backgroundColor: '#0A315E' },
 });
