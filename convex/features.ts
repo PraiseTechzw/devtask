@@ -66,3 +66,14 @@ export const remove = mutation({
     await updateProjectProgress(ctx, feature.projectId);
   },
 });
+
+export const update = mutation({
+  args: { featureId: v.id('features'), title: v.optional(v.string()), bucket: v.optional(bucket), weight: v.optional(weight), order: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx); const feature = await ctx.db.get(args.featureId);
+    if (!user || !feature || feature.ownerId !== user._id) throw new Error('Feature not found');
+    const title = args.title?.trim(); if (title !== undefined && (!title || title.length > 120)) throw new Error('Features must be 1–120 characters');
+    await ctx.db.patch(feature._id, { ...(title !== undefined ? { title } : {}), ...(args.bucket ? { bucket: args.bucket } : {}), ...(args.weight ? { weight: args.weight } : {}), ...(args.order !== undefined ? { order: args.order } : {}), updatedAt: Date.now() });
+    await updateProjectProgress(ctx, feature.projectId);
+  },
+});
