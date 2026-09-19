@@ -1,8 +1,9 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useUser } from '@clerk/expo';
 import { useRouter } from 'expo-router';
-import { useQuery } from 'convex/react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMutation, useQuery } from 'convex/react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
 import Svg, { Circle } from 'react-native-svg';
 
 import { api } from '../../convex/_generated/api';
@@ -12,6 +13,10 @@ import { FontFamily, Palette } from '@/constants/theme';
 export default function HomeScreen() {
   const router = useRouter(); const { user } = useUser(); const home = useQuery(api.projects.home, {});
   const unreadNotifications = useQuery(api.notifications.unreadCount, {});
+  const today = new Date().toISOString().slice(0, 10);
+  const checklist = useQuery(api.checklist.today, { localDate: today });
+  const createChecklist = useMutation(api.checklist.create); const toggleChecklist = useMutation(api.checklist.toggle);
+  const [checklistTitle, setChecklistTitle] = useState('');
   const firstName = user?.firstName || 'there';
   const bell = <Pressable accessibilityLabel="Notifications" onPress={() => router.push('/notifications')}><FontAwesome color="#D4EBFF" name={unreadNotifications ? "bell" : "bell-o"} size={19} /></Pressable>;
   if (home === undefined) return <AppShell action={bell}><Text style={styles.greeting}>Good morning, {firstName} 👋</Text><Text style={styles.loading}>Loading your workspace…</Text></AppShell>;
@@ -25,6 +30,7 @@ export default function HomeScreen() {
     <View style={styles.projectList}>{projects.map((project) => { const healthTone = healthColor(project.health); const progressTone = project.progress === 0 ? Palette.cyan : healthTone; return <Pressable accessibilityRole="button" key={project._id} onPress={() => router.push(`/project/${project._id}` as never)} style={styles.projectRow}><MiniRing color={progressTone} value={project.progress} /><View style={styles.projectCopy}><View style={styles.projectNameRow}><Text numberOfLines={1} style={styles.rowName}>{project.name}</Text><Text style={[styles.rowPercent, { color: progressTone }]}>{project.progress}%</Text></View><Text numberOfLines={1} style={styles.repo}>{project.repositoryName || 'Personal project'}{project.focus ? ' · Focus' : ''}</Text></View><View style={[styles.projectStatus, { backgroundColor: `${healthTone}22` }]}><View style={[styles.projectStatusDot, { backgroundColor: healthTone }]} /></View><FontAwesome color="#6EA7DC" name="chevron-right" size={9} /></Pressable>; })}</View>
     <View style={styles.motivation}><View style={styles.motivationIcon}><FontAwesome color={Palette.cyan} name="lightbulb-o" size={13} /></View><View><Text style={styles.motivationTitle}>Consistency beats motivation.</Text><Text style={styles.motivationCopy}>Keep going — one feature at a time.</Text></View></View>
     <SectionTitle>Today’s next step</SectionTitle><View style={styles.taskArea}><Pressable accessibilityRole="button" onPress={() => router.push(`/project/${focusProject._id}` as never)} style={styles.task}><View style={styles.taskIcon}><FontAwesome color={Palette.cyan} name="check" size={10} /></View><View style={styles.taskCopy}><Text style={styles.taskTitle}>{nextFeature?.title || 'Add your first v1 feature'}</Text><Text style={styles.taskHint}>{nextFeature ? `On ${focusProject.name}` : 'Turn your project into a finishable plan'}</Text></View><FontAwesome color="#8BC5F6" name="arrow-right" size={11} /></Pressable><Pressable accessibilityLabel="Add project" accessibilityRole="button" onPress={() => router.push('/add-project')} style={styles.fab}><Text style={styles.fabText}>+</Text></Pressable></View>
+    <SectionTitle>Today’s checklist</SectionTitle><View style={styles.checklist}>{checklist?.map((item) => <Pressable key={item._id} accessibilityRole="checkbox" accessibilityState={{ checked: item.state === 'completed' }} onPress={() => void toggleChecklist({ itemId: item._id })} style={styles.checkItem}><FontAwesome color={item.state === 'completed' ? '#00DDBE' : '#82B9E6'} name={item.state === 'completed' ? 'check-circle' : 'circle-o'} size={14} /><Text style={[styles.checkText, item.state === 'completed' && styles.checkDone]}>{item.title}</Text></Pressable>)}<View style={styles.checkAdd}><TextInput accessibilityLabel="Add checklist item" value={checklistTitle} onChangeText={setChecklistTitle} placeholder="Add a small task…" placeholderTextColor="#83B0DA" style={styles.checkInput} onSubmitEditing={() => { if (checklistTitle.trim()) { void createChecklist({ title: checklistTitle, localDate: today }); setChecklistTitle(''); } }} /><Pressable accessibilityLabel="Add checklist item" onPress={() => { if (checklistTitle.trim()) { void createChecklist({ title: checklistTitle, localDate: today }); setChecklistTitle(''); } }}><FontAwesome color={Palette.cyan} name="plus-circle" size={18} /></Pressable></View></View>
   </AppShell>;
 }
 function healthColor(health: string) { return health === 'active' ? '#00DDBE' : health === 'slowing' ? '#FFB020' : '#FF626C'; }
