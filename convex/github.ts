@@ -59,7 +59,7 @@ export const finish = internalAction({
   },
 });
 
-export const saveConnection = internalMutation({ args: { ownerId: v.id('users'), githubUserId: v.string(), encryptedToken: v.string(), scopes: v.array(v.string()), repositories: v.array(v.object({ githubRepositoryId: v.string(), fullName: v.string(), url: v.string(), defaultBranch: v.string(), visibility: v.union(v.literal('public'), v.literal('private')) })) }, handler: async (ctx, args) => { const now = Date.now(); const current = await ctx.db.query('githubConnections').withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId)).unique(); const connection = { ownerId: args.ownerId, githubUserId: args.githubUserId, encryptedToken: args.encryptedToken, scopes: args.scopes, state: 'connected' as const, lastSyncAt: now, lastError: undefined, updatedAt: now }; if (current) await ctx.db.patch(current._id, connection); else await ctx.db.insert('githubConnections', { ...connection, createdAt: now }); const previous = await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId)).collect(); await Promise.all(previous.map((repo) => ctx.db.delete(repo._id))); await Promise.all(args.repositories.map((repo) => ctx.db.insert('repositories', { ownerId: args.ownerId, ...repo, updatedAt: now }))); } });
+export const saveConnection = internalMutation({ args: { ownerId: v.id('users'), githubUserId: v.string(), encryptedToken: v.string(), scopes: v.array(v.string()), repositories: v.array(v.object({ githubRepositoryId: v.string(), fullName: v.string(), url: v.string(), defaultBranch: v.string(), visibility: v.union(v.literal('public'), v.literal('private')) })) }, handler: async (ctx, args) => { const now = Date.now(); const current = await ctx.db.query('githubConnections').withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId)).unique(); const connection = { ownerId: args.ownerId, githubUserId: args.githubUserId, encryptedToken: args.encryptedToken, scopes: args.scopes, state: 'connected' as const, lastSyncAt: now, lastError: undefined, updatedAt: now }; if (current) await ctx.db.patch(current._id, connection); else await ctx.db.insert('githubConnections', { ...connection, createdAt: now }); const previous = await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId)).collect(); await Promise.all(previous.map((repo) => ctx.db.delete(repo._id))); await Promise.all(args.repositories.map((repo) => ctx.db.insert('repositories', { ownerId: args.ownerId, ...repo, availability: 'available' as const, updatedAt: now }))); } });
 
 export const listRepositories = query({ args: {}, handler: async (ctx) => { const { user } = await requireCurrentUser(ctx); if (!user) return []; return await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).collect(); } });
 export const getConnection = query({ args: {}, handler: async (ctx) => { const { user } = await requireCurrentUser(ctx); if (!user) return null; const connection = await ctx.db.query('githubConnections').withIndex('by_owner', (q) => q.eq('ownerId', user._id)).unique(); return connection ? { state: connection.state, lastSyncAt: connection.lastSyncAt } : null; } });
@@ -111,7 +111,13 @@ export const saveSyncResult = internalMutation({
     }
     await ctx.db.patch(args.repositoryId, { latestCommitAt: args.latestCommitAt, recentCommitCount: args.recentCommitCount, openIssueCount: args.openIssueCount, openPullRequestCount: args.openPullRequestCount, availability: 'available', syncError: undefined, rateLimitResetAt: undefined, lastSyncAt: now, updatedAt: now });
     await ctx.db.patch(args.connectionId, { lastSyncAt: now, lastError: undefined, rateLimitResetAt: undefined, updatedAt: now });
-    await ctx.db.insert('activitySnapshots', { ownerId: repository.ownerId, repositoryId: repository._id, sampledDate: new Date(now).toISOString().slice(0, 10), latestCommitAt: args.latestCommitAt, recentCommitCount: args.recentCommitCount, openIssueCount: args.openIssueCount, openPullRequestCount: args.openPullRequestCount, createdAt: now });
+    const sampledDate = new Date(now).toISOString().slice(0, 10);
+    const existing = (await ctx.db.query('activitySnapshots').withIndex('by_repository', (q) => q.eq('repositoryId', repository._id)).collect()).find((snapshot) => snapshot.sampledDate === sampledDate);
+    const snapshot = { latestCommitAt: args.latestCommitAt, recentCommitCount: args.recentCommitCount, openIssueCount: args.openIssueCount, openPullRequestCount: args.openPullRequestCount };
+    if (existing) await ctx.db.patch(existing._id, snapshot);
+    else await ctx.db.insert('activitySnapshots', { ownerId: repository.ownerId, repositoryId: repository._id, sampledDate, createdAt: now, ...snapshot });
+    const jobs = await ctx.db.query('syncJobs').withIndex('by_repository', (q) => q.eq('repositoryId', args.repositoryId)).collect();
+    await Promise.all(jobs.filter((job) => job.state === 'queued' || job.state === 'running').map((job) => ctx.db.patch(job._id, { state: 'completed', completedAt: now })));
   },
 });
 
@@ -175,16 +181,91 @@ export const runSyncRepository = internalAction({
   },
 });
 
+const MANUAL_REFRESH_MS = 5 * 60 * 1000;
+
+export const authorizeManualSync = internalMutation({
+  args: { repositoryId: v.id('repositories'), clerkId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.query('users').withIndex('by_clerk_id', (q) => q.eq('clerkId', args.clerkId)).unique();
+    const repository = await ctx.db.get(args.repositoryId);
+    if (!user || !repository || repository.ownerId !== user._id) return { ok: false as const, message: 'Repository not found' };
+    if (repository.lastSyncAt && Date.now() - repository.lastSyncAt < MANUAL_REFRESH_MS) {
+      return { ok: false as const, message: 'You can refresh this repository again in a few minutes.' };
+    }
+    const jobs = await ctx.db.query('syncJobs').withIndex('by_repository', (q) => q.eq('repositoryId', args.repositoryId)).collect();
+    if (jobs.some((job) => job.state === 'running')) return { ok: false as const, message: 'A sync is already running for this repository.' };
+    await ctx.db.insert('syncJobs', { ownerId: user._id, repositoryId: repository._id, trigger: 'manual', idempotencyKey: `${repository._id}:manual:${Date.now()}`, state: 'running', attemptCount: 1, startedAt: Date.now() });
+    return { ok: true as const, message: 'Sync started' };
+  },
+});
+
 export const syncRepository = action({
   args: { repositoryId: v.id('repositories') },
-  handler: async (ctx, args): Promise<unknown> => ctx.runAction(internal.github.runSyncRepository, args),
+  handler: async (ctx, args): Promise<unknown> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error('Not authenticated');
+    const allowed = await ctx.runMutation(internal.github.authorizeManualSync, { repositoryId: args.repositoryId, clerkId: identity.subject });
+    if (!allowed.ok) throw new Error(allowed.message);
+    return ctx.runAction(internal.github.runSyncRepository, { repositoryId: args.repositoryId });
+  },
+});
+
+export const listLinkedTargetsForOwner = internalQuery({
+  args: { ownerId: v.id('users') },
+  handler: async (ctx, args) => {
+    const projects = await ctx.db.query('projects').withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId)).collect();
+    const imported = new Set(projects.filter((project) => project.repositoryId && project.state !== 'archived').map((project) => project.repositoryId));
+    const repositories = await ctx.db.query('repositories').withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId)).collect();
+    return repositories.filter((repository) => imported.has(repository.githubRepositoryId) && repository.availability !== 'missing');
+  },
+});
+
+export const syncLinkedRepositories = action({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error('Not authenticated');
+    const user = await ctx.runQuery(internal.users.getByClerkId, { clerkId: identity.subject });
+    if (!user) throw new Error('Finish creating your DevTask profile first');
+    const repositories = await ctx.runQuery(internal.github.listLinkedTargetsForOwner, { ownerId: user._id });
+    let synced = 0;
+    let skipped = 0;
+    for (const repository of repositories) {
+      const allowed = await ctx.runMutation(internal.github.authorizeManualSync, { repositoryId: repository._id, clerkId: identity.subject });
+      if (!allowed.ok) { skipped += 1; continue; }
+      await ctx.runAction(internal.github.runSyncRepository, { repositoryId: repository._id });
+      synced += 1;
+    }
+    return { synced, skipped, total: repositories.length };
+  },
 });
 
 export const listSyncTargets = internalQuery({
   args: {},
   handler: async (ctx) => {
+    const projects = await ctx.db.query('projects').collect();
+    const imported = new Set(projects.filter((project) => project.repositoryId && project.state !== 'archived').map((project) => project.repositoryId));
     const repositories = await ctx.db.query('repositories').collect();
-    return repositories.filter((repository) => repository.availability !== 'missing').map((repository) => repository._id);
+    return repositories.filter((repository) => imported.has(repository.githubRepositoryId) && repository.availability !== 'missing').map((repository) => repository._id);
+  },
+});
+
+export const listDueRetries = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const jobs = await ctx.db.query('syncJobs').collect();
+    const due = jobs.filter((job) => job.state === 'queued' && job.trigger === 'retry' && (job.nextRetryAt ?? 0) <= now);
+    return [...new Set(due.map((job) => job.repositoryId))];
+  },
+});
+
+export const runDueRetries = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const repositoryIds = await ctx.runQuery(internal.github.listDueRetries, {});
+    for (const repositoryId of repositoryIds) await ctx.runAction(internal.github.runSyncRepository, { repositoryId });
+    return repositoryIds.length;
   },
 });
 

@@ -2,33 +2,24 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
 
 import { AppShell } from '@/components/app-shell';
+import { CardPattern } from '@/components/card-pattern';
+import { ProgressRing } from '@/components/progress-ring';
 import { api } from '../../convex/_generated/api';
-import { FontFamily, Palette } from '@/constants/theme';
-
-type ProjectStatus = 'Active' | 'Slowing' | 'Stalled' | 'Dying' | 'Completed';
-type ProjectItem = {
-  id: string;
-  name: string;
-  progress: number;
-  health: string;
-  detail: string;
-  category: string;
-  budget: string;
-  status: ProjectStatus;
-};
+import { FontFamily, Palette, Radius } from '@/constants/theme';
 
 const filters = ['All', 'Active', 'Slowing', 'Stalled', 'Dying', 'Completed'] as const;
 type Filter = (typeof filters)[number];
 
-function statusColor(status: ProjectStatus) {
-  if (status === 'Dying') return '#FF626C';
-  if (status === 'Stalled') return '#FF9B4A';
-  if (status === 'Slowing') return '#FFB020';
-  return status === 'Completed' ? '#00CFF5' : '#00DDBE';
+function healthColor(health: string, completed = false) {
+  if (completed) return Palette.cyan;
+  if (health === 'dying') return Palette.red;
+  if (health === 'stalled') return Palette.orange;
+  if (health === 'slowing') return Palette.amber;
+  return Palette.mint;
 }
 
 export default function ProjectsScreen() {
@@ -36,40 +27,92 @@ export default function ProjectsScreen() {
   const projects = useQuery(api.projects.list, {});
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
-  const projectList: ProjectItem[] = (projects ?? []).map((project) => ({
-    id: project._id, name: project.name, progress: project.progress, health: project.health, detail: project.lastActivityAt ? 'Updated recently' : 'No activity yet', category: project.repositoryName || 'Personal project', budget: project.focus ? 'Focus' : 'Project', status: project.state === 'completed' ? 'Completed' : project.health[0].toUpperCase() + project.health.slice(1) as ProjectStatus,
-  }));
-  const visibleProjects = useMemo(() => projectList.filter((project) => {
-    const matchesFilter = filter === 'All' || project.status === filter;
+  const visibleProjects = useMemo(() => (projects ?? []).filter((project) => {
+    if (project.state === 'archived') return false;
+    const status = project.state === 'completed' ? 'Completed' : project.health[0].toUpperCase() + project.health.slice(1);
+    const matchesFilter = filter === 'All' || (filter === 'Active' ? project.state === 'active' && project.health === 'active' : status === filter);
     return matchesFilter && project.name.toLowerCase().includes(query.trim().toLowerCase());
-  }), [filter, projectList, query]);
+  }), [filter, projects, query]);
 
-  return <AppShell title="Projects" action={<Pressable accessibilityLabel="Add project" onPress={() => router.push('/add-project')}><Text style={styles.add}>+</Text></Pressable>}>
-    <View style={styles.search}><FontAwesome color="#8DB9E7" name="search" size={12} /><TextInput accessibilityLabel="Search projects" onChangeText={setQuery} placeholder="Search projects..." placeholderTextColor="#8DB9E7" style={styles.searchInput} value={query} /></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{filters.map((item) => <Pressable accessibilityRole="button" key={item} onPress={() => setFilter(item)} style={[styles.filter, filter === item && styles.selected]}><Text style={[styles.filterText, filter === item && styles.selectedText]}>{item}</Text></Pressable>)}</ScrollView>
-    {visibleProjects.length ? visibleProjects.map((project) => {
-      const color = statusColor(project.status);
-      return <Pressable accessibilityRole="button" key={project.id} onPress={() => router.push(`/project/${project.id}` as never)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-        <ProgressRing color={color} value={project.progress} />
-        <View style={styles.copy}><Text numberOfLines={1} style={styles.name}>{project.name}</Text><Text numberOfLines={1} style={styles.category}>{project.category}</Text><View style={styles.statusLine}><View style={[styles.dot, { backgroundColor: color }]} /><Text style={[styles.status, { color }]}>{project.status}</Text></View></View>
-        <View style={styles.budgetPill}><Text style={styles.budget}>{project.budget}</Text></View><FontAwesome color="#6EA7DC" name="chevron-right" size={9} />
-      </Pressable>;
-    }) : <View style={styles.empty}><Text style={styles.emptyTitle}>No projects found</Text><Text style={styles.emptyCopy}>Try another search or filter.</Text></View>}
-  </AppShell>;
-}
-
-function ProgressRing({ color, value }: { color: string; value: number }) {
-  const size = 36;
-  const stroke = 3;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  return <View style={styles.ring}><Svg height={size} width={size}><Circle cx={size / 2} cy={size / 2} fill="none" r={radius} stroke="#164A73" strokeWidth={stroke} /><Circle cx={size / 2} cy={size / 2} fill="none" origin={`${size / 2}, ${size / 2}`} r={radius} rotation="-90" stroke={color} strokeDasharray={`${circumference} ${circumference}`} strokeDashoffset={circumference * (1 - value / 100)} strokeLinecap="round" strokeWidth={stroke} /></Svg><Text style={styles.ringText}>{value}%</Text></View>;
+  return (
+    <AppShell
+      title="Projects"
+      action={
+        <Pressable accessibilityLabel="Add project" accessibilityRole="button" onPress={() => router.push('/add-project')} style={styles.addButton}>
+          <Text style={styles.add}>+</Text>
+        </Pressable>
+      }>
+      <View style={styles.search}>
+        <FontAwesome color="#8DB9E7" name="search" size={15} />
+        <TextInput accessibilityLabel="Search projects" onChangeText={setQuery} placeholder="Search projects..." placeholderTextColor="#8DB9E7" style={styles.searchInput} value={query} />
+      </View>
+      <ScrollView contentContainerStyle={styles.filters} horizontal showsHorizontalScrollIndicator={false}>
+        {filters.map((item) => {
+          const selected = filter === item;
+          return (
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected }} key={item} onPress={() => setFilter(item)}>
+              {selected ? (
+                <LinearGradient colors={[Palette.sky, Palette.blue]} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={styles.filterSelected}>
+                  <Text style={styles.selectedText}>{item}</Text>
+                </LinearGradient>
+              ) : (
+                <View style={styles.filter}><Text style={styles.filterText}>{item}</Text></View>
+              )}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {visibleProjects.length ? visibleProjects.map((project) => {
+        const completed = project.state === 'completed';
+        const color = healthColor(project.health, completed);
+        const status = completed ? 'Completed' : project.health[0].toUpperCase() + project.health.slice(1);
+        return (
+          <Pressable accessibilityRole="button" key={project._id} onPress={() => router.push(`/project/${project._id}` as never)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+            <LinearGradient colors={['#083868', '#06284F']} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={StyleSheet.absoluteFill} />
+            <CardPattern color={color} opacity={0.08} />
+            <ProgressRing color={color} size={54} stroke={5} value={project.progress} />
+            <View style={styles.copy}>
+              <Text numberOfLines={1} style={styles.name}>{project.name}</Text>
+              <Text numberOfLines={1} style={styles.category}>{project.repositoryName || 'Personal project'}{project.focus ? ' · Focus' : ''}</Text>
+              <View style={styles.statusLine}>
+                <View style={[styles.dot, { backgroundColor: color }]} />
+                <Text style={[styles.status, { color }]}>{status}</Text>
+              </View>
+            </View>
+            <Text style={[styles.percent, { color }]}>{project.progress}%</Text>
+          </Pressable>
+        );
+      }) : (
+        <View style={styles.empty}>
+          <CardPattern color={Palette.cyan} opacity={0.12} />
+          <Text style={styles.emptyTitle}>No projects found</Text>
+          <Text style={styles.emptyCopy}>Try another search or filter, or add a project.</Text>
+        </View>
+      )}
+    </AppShell>
+  );
 }
 
 const styles = StyleSheet.create({
-  add: { color: Palette.cyan, fontFamily: FontFamily.regular, fontSize: 30 },
-  search: { height: 36, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#0A67B4', borderRadius: 9, backgroundColor: '#06274F' }, searchInput: { flex: 1, height: '100%', color: '#EFF7FF', fontFamily: FontFamily.regular, fontSize: 10 },
-  filters: { flexDirection: 'row', gap: 6, marginVertical: 10 }, filter: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 99, backgroundColor: '#0A2C55' }, selected: { backgroundColor: '#087FFF' }, filterText: { color: '#A9C9F1', fontFamily: FontFamily.medium, fontSize: 9 }, selectedText: { color: '#FFF' },
-  card: { minHeight: 61, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, borderWidth: 1, borderColor: '#0A5EA7', backgroundColor: '#062B55', shadowColor: '#00172E', shadowOpacity: .4, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  ring: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#062246' }, ringText: { position: 'absolute', color: '#E1F4FF', fontFamily: FontFamily.mono, fontSize: 8 }, copy: { flex: 1, minWidth: 0 }, name: { color: '#EEF7FF', fontFamily: FontFamily.semibold, fontSize: 11 }, category: { marginTop: 2, color: '#82ADD9', fontFamily: FontFamily.regular, fontSize: 8 }, statusLine: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 4 }, dot: { width: 5, height: 5, borderRadius: 3 }, status: { fontFamily: FontFamily.medium, fontSize: 8 }, budgetPill: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 99, borderWidth: StyleSheet.hairlineWidth, borderColor: '#1B639D', backgroundColor: '#0A3B69' }, budget: { color: '#BCE2FF', fontFamily: FontFamily.medium, fontSize: 8 }, pressed: { opacity: .78, transform: [{ scale: .985 }] }, empty: { minHeight: 180, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#0A5EA7', borderRadius: 12, backgroundColor: '#041E3D' }, emptyTitle: { color: '#EFF7FF', fontFamily: FontFamily.semibold, fontSize: 14 }, emptyCopy: { marginTop: 5, color: '#83ACD7', fontFamily: FontFamily.regular, fontSize: 10 },
+  addButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: Palette.blue },
+  add: { color: '#FFF', fontFamily: FontFamily.regular, fontSize: 28, lineHeight: 30 },
+  search: { height: 48, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#1A8CFF', borderRadius: Radius.pill, backgroundColor: '#06284F' },
+  searchInput: { flex: 1, height: '100%', color: '#EFF7FF', fontFamily: FontFamily.regular, fontSize: 14 },
+  filters: { flexDirection: 'row', gap: 8, marginVertical: 14, paddingRight: 8 },
+  filter: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: '#1A5F9C', backgroundColor: '#0A2C55' },
+  filterSelected: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill },
+  filterText: { color: '#A9C9F1', fontFamily: FontFamily.medium, fontSize: 13 },
+  selectedText: { color: '#FFF', fontFamily: FontFamily.semibold, fontSize: 13 },
+  card: { overflow: 'hidden', minHeight: 88, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: '#1A8CFF' },
+  copy: { flex: 1, minWidth: 0 },
+  name: { color: '#EEF7FF', fontFamily: FontFamily.semibold, fontSize: 16 },
+  category: { marginTop: 3, color: '#82ADD9', fontFamily: FontFamily.regular, fontSize: 12 },
+  statusLine: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  status: { fontFamily: FontFamily.medium, fontSize: 12, textTransform: 'capitalize' },
+  percent: { fontFamily: FontFamily.bold, fontSize: 16 },
+  pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] },
+  empty: { overflow: 'hidden', minHeight: 180, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#1A8CFF', borderRadius: 16, backgroundColor: '#041E3D' },
+  emptyTitle: { color: '#EFF7FF', fontFamily: FontFamily.semibold, fontSize: 16 },
+  emptyCopy: { marginTop: 6, color: '#83ACD7', fontFamily: FontFamily.regular, fontSize: 13 },
 });
